@@ -150,6 +150,7 @@ function writeStateForEvent(payload) {
 
   switch (event) {
     case "UserPromptSubmit":
+    case "SubagentStart":
       state = "thinking";
       label = "Codex thinking";
       startedAt = now;
@@ -200,7 +201,6 @@ function writeStateForEvent(payload) {
       startedAt = 0;
       break;
     case "SessionStart":
-    case "SubagentStart":
       return;
     default:
       return;

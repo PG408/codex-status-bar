@@ -1,0 +1,82 @@
+{
+  "name": "main-turn",
+  "description": "主会话从用户提交到工具调用、权限请求，再到 Stop 的状态转移。",
+  "steps": [
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "session-main",
+        "turn_id": "turn-main",
+        "cwd": "/tmp/codex-status-bar"
+      },
+      "expect": {
+        "state": "thinking",
+        "label": "Codex thinking",
+        "sessionId": "session-main",
+        "activeSessionId": "session-main",
+        "activeTurnId": "turn-main",
+        "project": "codex-status-bar"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "session-main",
+        "turn_id": "turn-main",
+        "cwd": "/tmp/codex-status-bar",
+        "tool_name": "Bash"
+      },
+      "expect": {
+        "state": "tool",
+        "label": "Running command",
+        "tool": "Bash",
+        "activeSessionId": "session-main",
+        "activeTurnId": "turn-main"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "payload": {
+        "session_id": "session-main",
+        "turn_id": "turn-main",
+        "cwd": "/tmp/codex-status-bar",
+        "tool_name": "Bash"
+      },
+      "expect": {
+        "state": "thinking",
+        "label": "Codex thinking",
+        "activeSessionId": "session-main",
+        "activeTurnId": "turn-main"
+      }
+    },
+    {
+      "event": "PermissionRequest",
+      "payload": {
+        "session_id": "session-main",
+        "turn_id": "turn-main",
+        "cwd": "/tmp/codex-status-bar"
+      },
+      "expect": {
+        "state": "permission",
+        "label": "Awaiting permission",
+        "startedAt": 0,
+        "activeSessionId": "session-main",
+        "activeTurnId": "turn-main"
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "session_id": "session-main",
+        "turn_id": "turn-main",
+        "cwd": "/tmp/codex-status-bar"
+      },
+      "expect": {
+        "state": "done",
+        "label": "Done",
+        "startedAt": 0,
+        "sessionId": "session-main"
+      }
+    }
+  ]
+}

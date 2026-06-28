@@ -1,6 +1,6 @@
 # Codex Status Bar
 
-Codex Status Bar is a small macOS menu bar app that displays the live status of a Codex session. Phase 0 keeps the scope intentionally narrow: one status file, one visible menu bar item, and a local verification loop that can be used as the baseline for later multi-session work.
+Codex Status Bar is a small macOS menu bar app that displays the live status of a Codex session. The current baseline keeps the runtime scope intentionally narrow: one status file, one visible menu bar item, and deterministic hook replay tests that can be used as the baseline for later multi-session work.
 
 ## Phase 0 Scope
 
@@ -19,6 +19,15 @@ Out of scope:
 - Automatic update checks.
 - Developer ID signing, notarization, or full release packaging.
 - Production distribution polish.
+
+## Phase 1 Scope
+
+Phase 1 adds a deterministic local verification layer for Codex hook events:
+
+- Document the single-state-file hook event model.
+- Replay `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`, `SubagentStart`, and `SubagentStop` from fixtures.
+- Verify that background tool events cannot overwrite the active turn.
+- Keep the runtime model as a single `state.json` file.
 
 ## Requirements
 
@@ -81,6 +90,18 @@ Additional helper modes:
 node scripts/dev-state.js demo
 node scripts/test-statusbar.js
 ```
+
+## Hook Replay Testing
+
+Run the deterministic hook replay suite:
+
+```bash
+node scripts/replay-hook-fixtures.js
+```
+
+Fixtures live under `fixtures/hook-events/`. The replay script runs `scripts/codex-status-writer.js` in an isolated temporary status directory and verifies the resulting `state.json` after each hook event.
+
+The current event model is documented in `docs/hook-events.md`.
 
 ## Install Hooks
 
