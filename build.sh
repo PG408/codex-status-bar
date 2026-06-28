@@ -39,9 +39,11 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 
 cp scripts/codex-status-writer.js "$APP/Contents/Resources/codex-status-writer.js"
+cp scripts/codex-lifecycle-writer.js "$APP/Contents/Resources/codex-lifecycle-writer.js"
 cp scripts/install-codex-statusbar.js "$APP/Contents/Resources/install-codex-statusbar.js"
 cp scripts/uninstall-codex-statusbar.js "$APP/Contents/Resources/uninstall-codex-statusbar.js"
 chmod +x "$APP/Contents/Resources/codex-status-writer.js"
+chmod +x "$APP/Contents/Resources/codex-lifecycle-writer.js"
 chmod +x "$APP/Contents/Resources/install-codex-statusbar.js"
 chmod +x "$APP/Contents/Resources/uninstall-codex-statusbar.js"
 

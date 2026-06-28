@@ -6,8 +6,8 @@ const path = require("path");
 const event = process.argv[2] || "unknown";
 const home = os.homedir();
 const dir = process.env.CODEX_STATUSBAR_DIR || path.join(home, ".codex", "statusbar");
+const stateDir = path.join(dir, "state.d");
 const debugLogPath = path.join(dir, "hooks-discovery.jsonl");
-const statePath = path.join(dir, "state.json");
 const minToolVisibleMs = Number(process.env.CODEX_STATUSBAR_MIN_TOOL_VISIBLE_MS || 900);
 const maxToolVisibleMs = Number(process.env.CODEX_STATUSBAR_MAX_TOOL_VISIBLE_MS || 8000);
 const minPermissionVisibleMs = Number(process.env.CODEX_STATUSBAR_MIN_PERMISSION_VISIBLE_MS || 12000);
@@ -24,7 +24,7 @@ setTimeout(run, 1000);
 let done = false;
 
 function safeId(value) {
-  return String(value || "").replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 80);
+  return String(value || "").replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 80) || "unknown";
 }
 
 function basename(value) {
@@ -51,7 +51,8 @@ function summarizePayload(payload) {
     safeValues: {
       cwdBasename: basename(payload.cwd || payload.working_directory || payload.current_working_directory),
       toolName: typeof payload.tool_name === "string" ? payload.tool_name : "",
-      sessionId: safeId(payload.session_id || payload.sessionId),
+      sessionId: sessionIdFor(payload),
+      turnId: turnIdFor(payload),
       permissionMode: typeof payload.permission_mode === "string" ? payload.permission_mode : "",
       matcher: typeof payload.matcher === "string" ? payload.matcher : "",
     },
@@ -92,40 +93,51 @@ function sessionIdFor(payload) {
 }
 
 function turnIdFor(payload) {
-  return safeId(payload.turn_id || payload.turnId);
+  return safeId(payload.turn_id || payload.turnId || "");
+}
+
+function statePathFor(sessionId) {
+  return path.join(stateDir, `${safeId(sessionId)}.json`);
+}
+
+function readPrevious(sessionId) {
+  try {
+    return JSON.parse(fs.readFileSync(statePathFor(sessionId), "utf8"));
+  } catch {
+    return {};
+  }
 }
 
 function isActiveTurn(payload, prev) {
-  const sessionId = sessionIdFor(payload);
   const turnId = turnIdFor(payload);
-  if (!sessionId || sessionId !== prev.activeSessionId) return false;
-  if (turnId && prev.activeTurnId) return turnId === prev.activeTurnId;
-  return Boolean(prev.activeSessionId);
+  if (!turnId || !prev.turnId) return Boolean(prev.sessionId);
+  return turnId === prev.turnId;
 }
 
-function isActiveSession(payload, prev) {
+function entrypointFor(payload, prev) {
+  if (typeof payload.entrypoint === "string" && payload.entrypoint) return payload.entrypoint;
+  if (typeof payload.entry_point === "string" && payload.entry_point) return payload.entry_point;
+  if (process.env.CODEX_STATUSBAR_ENTRYPOINT) return process.env.CODEX_STATUSBAR_ENTRYPOINT;
+  if (process.env.CODEX_ENTRYPOINT) return process.env.CODEX_ENTRYPOINT;
+  if (prev.entrypoint) return prev.entrypoint;
+  return process.env.TERM_PROGRAM ? "cli" : "";
+}
+
+function stateFor(payload, prev, now, startedAt, state, label, toolName) {
   const sessionId = sessionIdFor(payload);
-  if (!prev.activeSessionId) return true;
-  return Boolean(sessionId && sessionId === prev.activeSessionId);
-}
-
-function baseState(payload, now, startedAt, state, label, toolName) {
+  const incomingTurnId = turnIdFor(payload);
   return {
     state,
     label,
     tool: toolName,
-    project: basename(payload.cwd || payload.working_directory || payload.current_working_directory),
-    sessionId: sessionIdFor(payload),
+    project: basename(payload.cwd || payload.working_directory || payload.current_working_directory) || prev.project || "",
+    sessionId,
+    turnId: incomingTurnId || prev.turnId || "",
+    pid: Number(prev.pid || process.ppid || 0),
+    entrypoint: entrypointFor(payload, prev),
+    started: true,
     startedAt,
     ts: now,
-  };
-}
-
-function activeState(payload, now, startedAt, state, label, toolName) {
-  return {
-    ...baseState(payload, now, startedAt, state, label, toolName),
-    activeSessionId: sessionIdFor(payload),
-    activeTurnId: turnIdFor(payload),
   };
 }
 
@@ -136,33 +148,28 @@ function wait(ms) {
 }
 
 function writeStateForEvent(payload) {
+  const sessionId = sessionIdFor(payload);
   const nowMs = Date.now();
-  const now = Math.floor(nowMs / 1000);
-  let prev = {};
-  try {
-    prev = JSON.parse(fs.readFileSync(statePath, "utf8"));
-  } catch {}
-
-  let state = "idle";
-  let label = "";
+  const now = nowMs / 1000;
+  const prev = readPrevious(sessionId);
   let startedAt = Number(prev.startedAt || 0);
   const toolName = typeof payload.tool_name === "string" ? payload.tool_name : "";
 
   switch (event) {
     case "UserPromptSubmit":
-    case "SubagentStart":
-      state = "thinking";
-      label = "Codex thinking";
+    case "SubagentStart": {
       startedAt = now;
-      writeJsonAtomic(statePath, activeState(payload, now, startedAt, state, label, toolName));
+      writeJsonAtomic(
+        statePathFor(sessionId),
+        stateFor(payload, prev, now, startedAt, "thinking", "Codex thinking", toolName)
+      );
       return;
+    }
     case "PreToolUse": {
       if (!isActiveTurn(payload, prev)) return;
-      state = "tool";
-      label = labelForTool(toolName);
       if (!startedAt) startedAt = now;
-      writeJsonAtomic(statePath, {
-        ...activeState(payload, now, startedAt, state, label, toolName),
+      writeJsonAtomic(statePathFor(sessionId), {
+        ...stateFor(payload, prev, now, startedAt, "tool", labelForTool(toolName), toolName),
         visibleUntilMs: nowMs + maxToolVisibleMs,
         minVisibleUntilMs: nowMs + minToolVisibleMs,
       });
@@ -176,37 +183,33 @@ function writeStateForEvent(payload) {
           wait(waitMs);
         }
       }
-      const afterWaitNow = Math.floor(Date.now() / 1000);
-      state = "thinking";
-      label = "Codex thinking";
+      const afterWaitNow = Date.now() / 1000;
       if (!startedAt) startedAt = afterWaitNow;
-      writeJsonAtomic(statePath, activeState(payload, afterWaitNow, startedAt, state, label, toolName));
+      writeJsonAtomic(
+        statePathFor(sessionId),
+        stateFor(payload, prev, afterWaitNow, startedAt, "thinking", "Codex thinking", toolName)
+      );
       return;
     }
     case "PermissionRequest":
-      if (!isActiveSession(payload, prev)) return;
-      state = "permission";
-      label = "Awaiting permission";
-      startedAt = 0;
-      writeJsonAtomic(statePath, {
-        ...activeState(payload, now, startedAt, state, label, toolName),
+      writeJsonAtomic(statePathFor(sessionId), {
+        ...stateFor(payload, prev, now, 0, "permission", "Awaiting permission", toolName),
         minVisibleUntilMs: nowMs + minPermissionVisibleMs,
       });
       return;
     case "Stop":
     case "SubagentStop":
       if (!isActiveTurn(payload, prev)) return;
-      state = "done";
-      label = "Done";
-      startedAt = 0;
-      break;
-    case "SessionStart":
+      writeJsonAtomic(
+        statePathFor(sessionId),
+        stateFor(payload, prev, now, 0, "done", "Done", toolName)
+      );
       return;
+    case "SessionStart":
+    case "SessionEnd":
     default:
       return;
   }
-
-  writeJsonAtomic(statePath, baseState(payload, now, startedAt, state, label, toolName));
 }
 
 function run() {

@@ -1,6 +1,6 @@
 # Codex Status Bar
 
-Codex Status Bar is a small macOS menu bar app that displays the live status of a Codex session. The current baseline keeps the runtime scope intentionally narrow: one status file, one visible menu bar item, and deterministic hook replay tests that can be used as the baseline for later multi-session work.
+Codex Status Bar is a small macOS menu bar app that displays the live status of Codex sessions. The current baseline keeps the UI intentionally narrow: multiple local session state files, one visible menu bar item, and deterministic hook replay tests that can be used as the baseline for later session-menu work.
 
 ## Phase 0 Scope
 
@@ -28,6 +28,18 @@ Phase 1 adds a deterministic local verification layer for Codex hook events:
 - Replay `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`, `SubagentStart`, and `SubagentStop` from fixtures.
 - Verify that background tool events cannot overwrite the active turn.
 - Keep the runtime model as a single `state.json` file.
+
+## Phase 2 Scope
+
+Phase 2 upgrades the runtime model to Codex multi-session state:
+
+- Write new status updates to `~/.codex/statusbar/state.d/<session_id>.json`.
+- Use a lifecycle writer for `SessionStart` and `SessionEnd`.
+- Aggregate multiple session files in Swift and render one lead session.
+- Select the lead by `permission` first, then `tool/thinking`, then most-recent idle/done state.
+- Keep old `state.json` as a read-only fallback when `state.d/` is empty.
+
+Still out of scope: session dropdown UI, click-to-focus, automatic updates, signing, notarization, and release packaging.
 
 ## Requirements
 
@@ -74,7 +86,7 @@ Verify that the app launches:
 
 ## Manual State Testing
 
-The app polls `~/.codex/statusbar/state.json` every 0.4 seconds. Use the development helper to switch states manually:
+The app polls `~/.codex/statusbar/state.d/` every 0.4 seconds. Use the development helper to switch the default `dev` session manually:
 
 ```bash
 node scripts/dev-state.js idle
@@ -99,7 +111,7 @@ Run the deterministic hook replay suite:
 node scripts/replay-hook-fixtures.js
 ```
 
-Fixtures live under `fixtures/hook-events/`. The replay script runs `scripts/codex-status-writer.js` in an isolated temporary status directory and verifies the resulting `state.json` after each hook event.
+Fixtures live under `fixtures/hook-events/`. The replay script runs `scripts/codex-status-writer.js` and `scripts/codex-lifecycle-writer.js` in an isolated temporary status directory, verifies `state.d/`, rejects legacy `state.json` writes, and checks the expected lead session.
 
 The current event model is documented in `docs/hook-events.md`.
 
@@ -130,14 +142,15 @@ The uninstall script edits `~/.codex/hooks.json` and removes commands containing
 
 ## Local Files
 
-- App state: `~/.codex/statusbar/state.json`
+- App state: `~/.codex/statusbar/state.d/<session_id>.json`
+- Legacy fallback state: `~/.codex/statusbar/state.json`
 - App render log: `~/.codex/statusbar/app.log`
 - Hook discovery log, when enabled: `~/.codex/statusbar/hooks-discovery.jsonl`
 - Installed hooks: `~/.codex/hooks.json`
 
 ## Design Baseline
 
-This project starts from the single-session Codex status bar reference and preserves the local-file plus menu-bar architecture. Later phases can replace the single `state.json` file with a per-session `state.d/` model, add session rows, and introduce stronger lifecycle handling.
+This project starts from the Codex status bar reference and preserves the local-file plus menu-bar architecture. Later phases can add session rows, click-to-focus behavior, and stronger lifecycle handling without changing the Phase 2 `state.d/` contract.
 
 The project is unofficial and is not affiliated with, endorsed by, or sponsored by OpenAI.
 

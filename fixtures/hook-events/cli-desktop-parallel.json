@@ -1,0 +1,104 @@
+{
+  "name": "cli-desktop-parallel",
+  "description": "CLI 与 Desktop session 并行存在时，Desktop 权限请求应成为 lead session。",
+  "steps": [
+    {
+      "writer": "lifecycle",
+      "event": "SessionStart",
+      "payload": {
+        "session_id": "cli-main",
+        "cwd": "/tmp/cli-project",
+        "entrypoint": "cli"
+      },
+      "expect": {
+        "sessions": {
+          "cli-main": {
+            "state": "idle",
+            "sessionId": "cli-main",
+            "entrypoint": "cli",
+            "started": false
+          }
+        },
+        "lead": "cli-main"
+      }
+    },
+    {
+      "writer": "lifecycle",
+      "event": "SessionStart",
+      "payload": {
+        "session_id": "desktop-main",
+        "cwd": "/tmp/desktop-project",
+        "entrypoint": "codex-desktop"
+      },
+      "expect": {
+        "sessions": {
+          "cli-main": {
+            "state": "idle"
+          },
+          "desktop-main": {
+            "state": "idle",
+            "entrypoint": "codex-desktop",
+            "project": "desktop-project"
+          }
+        },
+        "lead": "desktop-main"
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "cli-main",
+        "turn_id": "cli-turn",
+        "cwd": "/tmp/cli-project"
+      },
+      "expect": {
+        "sessions": {
+          "cli-main": {
+            "state": "thinking",
+            "turnId": "cli-turn",
+            "started": true
+          }
+        },
+        "lead": "cli-main"
+      }
+    },
+    {
+      "event": "PermissionRequest",
+      "payload": {
+        "session_id": "desktop-main",
+        "turn_id": "desktop-turn",
+        "cwd": "/tmp/desktop-project"
+      },
+      "expect": {
+        "sessions": {
+          "desktop-main": {
+            "state": "permission",
+            "label": "Awaiting permission",
+            "turnId": "desktop-turn",
+            "started": true
+          },
+          "cli-main": {
+            "state": "thinking"
+          }
+        },
+        "lead": "desktop-main"
+      }
+    },
+    {
+      "writer": "lifecycle",
+      "event": "SessionEnd",
+      "payload": {
+        "session_id": "desktop-main"
+      },
+      "expect": {
+        "absent": ["desktop-main"],
+        "sessions": {
+          "cli-main": {
+            "state": "thinking"
+          }
+        },
+        "lead": "cli-main"
+      }
+    }
+  ]
+}

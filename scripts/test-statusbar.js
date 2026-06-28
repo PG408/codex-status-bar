@@ -5,7 +5,9 @@ const path = require("path");
 const readline = require("readline");
 
 const dir = process.env.CODEX_STATUSBAR_DIR || path.join(os.homedir(), ".codex", "statusbar");
-const statePath = process.env.CODEX_STATUSBAR_STATE_PATH || path.join(dir, "state.json");
+const sessionId = process.env.CODEX_STATUSBAR_TEST_SESSION_ID || "manual-test";
+const stateDir = process.env.CODEX_STATUSBAR_STATE_DIR || path.join(dir, "state.d");
+const statePath = path.join(stateDir, `${sessionId}.json`);
 const stepDelayMs = Number(process.env.CODEX_STATUSBAR_TEST_DELAY_MS || 1200);
 
 const pipedAnswers = process.stdin.isTTY ? [] : fs.readFileSync(0, "utf8").split(/\r?\n/);
@@ -29,7 +31,11 @@ function writeState(state, label, tool = "") {
     label,
     tool,
     project: path.basename(process.cwd()),
-    sessionId: "manual-test",
+    sessionId,
+    turnId: state === "idle" || state === "done" ? "" : "manual-turn",
+    pid: process.ppid,
+    entrypoint: "manual",
+    started: state !== "idle",
     startedAt: state === "thinking" || state === "tool" ? now : 0,
     ts: now,
   };

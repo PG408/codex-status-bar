@@ -1,0 +1,80 @@
+{
+  "name": "stale-background-cannot-win",
+  "description": "旧 turn 和后台 session 事件不能覆盖当前高优先级 permission session。",
+  "steps": [
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "active",
+        "turn_id": "new-turn",
+        "cwd": "/tmp/active-project"
+      },
+      "expect": {
+        "sessions": {
+          "active": {
+            "state": "thinking",
+            "turnId": "new-turn"
+          }
+        },
+        "lead": "active"
+      }
+    },
+    {
+      "event": "PermissionRequest",
+      "payload": {
+        "session_id": "active",
+        "turn_id": "new-turn",
+        "cwd": "/tmp/active-project"
+      },
+      "expect": {
+        "sessions": {
+          "active": {
+            "state": "permission",
+            "turnId": "new-turn"
+          }
+        },
+        "lead": "active"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "active",
+        "turn_id": "old-turn",
+        "cwd": "/tmp/active-project",
+        "tool_name": "Read"
+      },
+      "expect": {
+        "sessions": {
+          "active": {
+            "state": "permission",
+            "turnId": "new-turn",
+            "tool": ""
+          }
+        },
+        "lead": "active"
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "background",
+        "turn_id": "background-turn",
+        "cwd": "/tmp/background-project"
+      },
+      "expect": {
+        "sessions": {
+          "active": {
+            "state": "permission",
+            "turnId": "new-turn"
+          },
+          "background": {
+            "state": "thinking",
+            "turnId": "background-turn"
+          }
+        },
+        "lead": "active"
+      }
+    }
+  ]
+}

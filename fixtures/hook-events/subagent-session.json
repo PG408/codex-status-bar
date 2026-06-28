@@ -1,0 +1,46 @@
+{
+  "name": "subagent-session",
+  "description": "SubagentStart/SubagentStop 写入对应 session 文件，并保留 turn 归属。",
+  "steps": [
+    {
+      "event": "SubagentStart",
+      "payload": {
+        "session_id": "subagent",
+        "turn_id": "sub-turn",
+        "cwd": "/tmp/subagent-project"
+      },
+      "expect": {
+        "sessions": {
+          "subagent": {
+            "state": "thinking",
+            "label": "Codex thinking",
+            "sessionId": "subagent",
+            "turnId": "sub-turn",
+            "project": "subagent-project",
+            "started": true
+          }
+        },
+        "lead": "subagent"
+      }
+    },
+    {
+      "event": "SubagentStop",
+      "payload": {
+        "session_id": "subagent",
+        "turn_id": "sub-turn",
+        "cwd": "/tmp/subagent-project"
+      },
+      "expect": {
+        "sessions": {
+          "subagent": {
+            "state": "done",
+            "label": "Done",
+            "startedAt": 0,
+            "turnId": "sub-turn"
+          }
+        },
+        "lead": "subagent"
+      }
+    }
+  ]
+}

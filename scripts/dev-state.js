@@ -6,7 +6,9 @@ const path = require("path");
 const stateArg = process.argv[2] || "thinking";
 const labelArg = process.argv.slice(3).join(" ");
 const dir = process.env.CODEX_STATUSBAR_DIR || path.join(os.homedir(), ".codex", "statusbar");
-const statePath = process.env.CODEX_STATUSBAR_STATE_PATH || path.join(dir, "state.json");
+const sessionId = process.env.CODEX_STATUSBAR_DEV_SESSION_ID || "dev";
+const stateDir = process.env.CODEX_STATUSBAR_STATE_DIR || path.join(dir, "state.d");
+const statePath = path.join(stateDir, `${sessionId}.json`);
 
 const labels = {
   idle: "",
@@ -48,7 +50,11 @@ function writeState(state, label) {
     label: labelArg || label,
     tool: state === "tool" ? "Bash" : "",
     project: path.basename(process.cwd()),
-    sessionId: "dev",
+    sessionId,
+    turnId: state === "idle" || state === "done" ? "" : "dev-turn",
+    pid: process.ppid,
+    entrypoint: "dev",
+    started: state !== "idle",
     startedAt,
     ts: now,
   };

@@ -27,19 +27,60 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    let defaultStatePath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.json")
+    let defaultStateDir = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.d")
+    let defaultLegacyStatePath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.json")
     let pollInterval: TimeInterval = 0.4
     let staleAfter: TimeInterval = 15 * 60
     let quietThinkingAfter: TimeInterval = 60
 
-    var statePath: String {
-        ProcessInfo.processInfo.environment["CODEX_STATUSBAR_STATE_PATH"] ?? defaultStatePath
+    var stateDir: String {
+        ProcessInfo.processInfo.environment["CODEX_STATUSBAR_STATE_DIR"] ?? defaultStateDir
+    }
+
+    var legacyStatePath: String {
+        ProcessInfo.processInfo.environment["CODEX_STATUSBAR_STATE_PATH"] ?? defaultLegacyStatePath
     }
 
     var pollTimer: Timer?
     var animTimer: Timer?
-    var lastMTime: Date = .distantPast
-    var current: [String: Any] = [:]
+
+    struct Session {
+        var id: String
+        var state: State
+        var label: String
+        var tool: String
+        var project: String
+        var sessionId: String
+        var turnId: String
+        var pid: Int32
+        var entrypoint: String
+        var started: Bool
+        var startedAt: Double
+        var ts: Double
+        var visibleUntilMs: Double
+        var effectiveState: State
+
+        init(json object: [String: Any], id: String) {
+            self.id = id
+            self.state = State(rawValue: object["state"] as? String ?? "idle") ?? .idle
+            self.label = object["label"] as? String ?? ""
+            self.tool = object["tool"] as? String ?? ""
+            self.project = object["project"] as? String ?? ""
+            self.sessionId = object["sessionId"] as? String ?? id
+            self.turnId = object["turnId"] as? String ?? ""
+            self.pid = Int32(truncatingIfNeeded: (object["pid"] as? NSNumber)?.intValue ?? 0)
+            self.entrypoint = object["entrypoint"] as? String ?? ""
+            self.started = object["started"] as? Bool ?? false
+            self.startedAt = (object["startedAt"] as? NSNumber)?.doubleValue ?? 0
+            self.ts = (object["ts"] as? NSNumber)?.doubleValue ?? 0
+            self.visibleUntilMs = (object["visibleUntilMs"] as? NSNumber)?.doubleValue ?? 0
+            self.effectiveState = self.state
+        }
+    }
+
+    var sessions: [String: Session] = [:]
+    var fileMTimes: [String: Date] = [:]
+    var legacyMTime: Date = .distantPast
 
     var activeLabel = ""
     var activeStartedAt: Double = 0
@@ -156,7 +197,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let revealItem = NSMenuItem(title: "Reveal State File", action: #selector(revealStateFile), keyEquivalent: "")
+        let revealItem = NSMenuItem(title: "Reveal State Directory", action: #selector(revealStateFile), keyEquivalent: "")
         revealItem.target = self
         menu.addItem(revealItem)
 
@@ -218,12 +259,19 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     @objc func revealStateFile() {
-        let url = URL(fileURLWithPath: statePath)
+        try? FileManager.default.createDirectory(atPath: stateDir, withIntermediateDirectories: true)
+        let url = URL(fileURLWithPath: stateDir)
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     @objc func resetStatus() {
-        current = ["state": "idle", "label": "", "startedAt": 0, "ts": Date().timeIntervalSince1970]
+        for file in stateFileNames() {
+            try? FileManager.default.removeItem(atPath: (stateDir as NSString).appendingPathComponent(file))
+        }
+        try? FileManager.default.removeItem(atPath: legacyStatePath)
+        sessions.removeAll()
+        fileMTimes.removeAll()
+        legacyMTime = .distantPast
         render(state: .idle, label: "", startedAt: 0)
     }
 
@@ -232,52 +280,87 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func tick() {
+        reloadSessions()
+        evaluate()
+    }
+
+    func stateFileNames() -> [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: stateDir)) ?? []).filter { $0.hasSuffix(".json") }
+    }
+
+    func reloadSessions() {
+        let files = stateFileNames()
+        if files.isEmpty {
+            loadLegacyStateIfNeeded()
+            return
+        }
+
+        if sessions.keys.contains("legacy-state") {
+            sessions["legacy-state"] = nil
+            legacyMTime = .distantPast
+        }
+
+        let present = Set(files)
+        for key in Array(fileMTimes.keys) where !present.contains(key) {
+            fileMTimes[key] = nil
+            sessions[(key as NSString).deletingPathExtension] = nil
+        }
+
         let fm = FileManager.default
-        guard let attrs = try? fm.attributesOfItem(atPath: statePath),
+        for file in files {
+            let fullPath = (stateDir as NSString).appendingPathComponent(file)
+            guard let attrs = try? fm.attributesOfItem(atPath: fullPath),
+                  let mtime = attrs[.modificationDate] as? Date else { continue }
+            if fileMTimes[file] == mtime { continue }
+            fileMTimes[file] = mtime
+            guard let data = fm.contents(atPath: fullPath),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+            let id = (file as NSString).deletingPathExtension
+            sessions[id] = Session(json: object, id: id)
+        }
+    }
+
+    func loadLegacyStateIfNeeded() {
+        let fm = FileManager.default
+        guard let attrs = try? fm.attributesOfItem(atPath: legacyStatePath),
               let mtime = attrs[.modificationDate] as? Date else {
+            sessions.removeAll()
+            fileMTimes.removeAll()
+            legacyMTime = .distantPast
+            return
+        }
+
+        guard mtime != legacyMTime else { return }
+        legacyMTime = mtime
+        fileMTimes.removeAll()
+        sessions.removeAll()
+        if let data = fm.contents(atPath: legacyStatePath),
+           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            sessions["legacy-state"] = Session(json: object, id: "legacy-state")
+        }
+    }
+
+    func evaluate() {
+        let now = Date().timeIntervalSince1970
+        for id in Array(sessions.keys) {
+            guard var session = sessions[id] else { continue }
+            session.effectiveState = effectiveState(for: session, now: now)
+            sessions[id] = session
+        }
+
+        guard let lead = sessions.values.max(by: { left, right in
+            let leftPriority = priority(of: left.effectiveState)
+            let rightPriority = priority(of: right.effectiveState)
+            return leftPriority == rightPriority ? left.ts < right.ts : leftPriority < rightPriority
+        }) else {
+            logRender(state: .idle, label: "", startedAt: 0)
             render(state: .idle, label: "", startedAt: 0)
             return
         }
 
-        if mtime != lastMTime {
-            lastMTime = mtime
-            if let data = fm.contents(atPath: statePath),
-               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                current = object
-            }
-        }
-
-        evaluate()
-    }
-
-    func evaluate() {
-        let rawState = current["state"] as? String ?? "idle"
-        var state = State(rawValue: rawState) ?? .idle
-        var label = current["label"] as? String ?? ""
-        let startedAt = (current["startedAt"] as? NSNumber)?.doubleValue ?? 0
-        let ts = (current["ts"] as? NSNumber)?.doubleValue ?? 0
-        let visibleUntilMs = (current["visibleUntilMs"] as? NSNumber)?.doubleValue ?? 0
-
-        if [.thinking, .tool, .permission, .waiting].contains(state), ts > 0 {
-            let age = Date().timeIntervalSince1970 - ts
-            if age > staleAfter {
-                state = .idle
-                label = ""
-            }
-        }
-
-        if state == .tool, visibleUntilMs > 0, Date().timeIntervalSince1970 * 1000 > visibleUntilMs {
-            state = .thinking
-            label = "Codex thinking"
-        }
-
-        if state == .thinking, ts > 0 {
-            let quietAge = Date().timeIntervalSince1970 - ts
-            if quietAge > quietThinkingAfter {
-                state = .idle
-                label = ""
-            }
-        }
+        let state = lead.effectiveState
+        let label = statusLabel(for: lead)
+        let startedAt = state == .thinking || state == .tool ? lead.startedAt : 0
 
         switch state {
         case .thinking:
@@ -301,13 +384,62 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
     }
 
+    func effectiveState(for session: Session, now: Double) -> State {
+        var state = session.state
+        if [.thinking, .tool, .permission, .waiting].contains(state), session.ts > 0 {
+            let age = now - session.ts
+            if age > staleAfter {
+                return .idle
+            }
+        }
+
+        if state == .tool, session.visibleUntilMs > 0, now * 1000 > session.visibleUntilMs {
+            state = .thinking
+        }
+
+        if state == .thinking, session.ts > 0 {
+            let quietAge = now - session.ts
+            if quietAge > quietThinkingAfter {
+                return .idle
+            }
+        }
+
+        return state
+    }
+
+    func priority(of state: State) -> Int {
+        switch state {
+        case .permission:
+            return 2
+        case .thinking, .tool:
+            return 1
+        case .idle, .done, .waiting:
+            return 0
+        }
+    }
+
+    func statusLabel(for session: Session) -> String {
+        switch session.effectiveState {
+        case .thinking:
+            return session.label.isEmpty ? "Thinking..." : session.label
+        case .tool:
+            return session.label.isEmpty ? "Working..." : session.label
+        case .permission:
+            return session.label.isEmpty ? "Awaiting permission" : session.label
+        case .waiting:
+            return session.label.isEmpty ? "Waiting" : session.label
+        case .idle, .done:
+            return ""
+        }
+    }
+
     func logRender(state: State, label: String, startedAt: Double) {
         let signature = "\(state.rawValue)|\(label)|\(Int(startedAt))"
         guard signature != lastLoggedSignature else { return }
         lastLoggedSignature = signature
         let dir = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar")
         let path = (dir as NSString).appendingPathComponent("app.log")
-        let line = "\(ISO8601DateFormatter().string(from: Date())) render state=\(state.rawValue) label=\(label) startedAt=\(Int(startedAt)) statePath=\(statePath)\n"
+        let line = "\(ISO8601DateFormatter().string(from: Date())) render state=\(state.rawValue) label=\(label) startedAt=\(Int(startedAt)) stateDir=\(stateDir) legacyStatePath=\(legacyStatePath)\n"
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         if let data = line.data(using: .utf8) {
             if FileManager.default.fileExists(atPath: path),

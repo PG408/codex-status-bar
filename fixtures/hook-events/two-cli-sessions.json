@@ -1,0 +1,110 @@
+{
+  "name": "two-cli-sessions",
+  "description": "两个 CLI session 并行存在时，permission 优先，其次 tool/thinking，最后按最近活跃时间选择。",
+  "steps": [
+    {
+      "writer": "lifecycle",
+      "event": "SessionStart",
+      "payload": {
+        "session_id": "cli-a",
+        "cwd": "/tmp/project-a"
+      },
+      "expect": {
+        "sessions": {
+          "cli-a": {
+            "state": "idle",
+            "sessionId": "cli-a",
+            "project": "project-a",
+            "started": false
+          }
+        },
+        "lead": "cli-a"
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "cli-a",
+        "turn_id": "turn-a",
+        "cwd": "/tmp/project-a"
+      },
+      "expect": {
+        "sessions": {
+          "cli-a": {
+            "state": "thinking",
+            "label": "Codex thinking",
+            "turnId": "turn-a",
+            "started": true
+          }
+        },
+        "lead": "cli-a"
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "cli-b",
+        "turn_id": "turn-b",
+        "cwd": "/tmp/project-b"
+      },
+      "expect": {
+        "sessions": {
+          "cli-a": {
+            "state": "thinking",
+            "turnId": "turn-a"
+          },
+          "cli-b": {
+            "state": "thinking",
+            "label": "Codex thinking",
+            "turnId": "turn-b",
+            "project": "project-b",
+            "started": true
+          }
+        },
+        "lead": "cli-b"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "cli-b",
+        "turn_id": "turn-b",
+        "cwd": "/tmp/project-b",
+        "tool_name": "Bash"
+      },
+      "expect": {
+        "sessions": {
+          "cli-b": {
+            "state": "tool",
+            "label": "Running command",
+            "tool": "Bash",
+            "turnId": "turn-b"
+          }
+        },
+        "lead": "cli-b"
+      }
+    },
+    {
+      "event": "PermissionRequest",
+      "payload": {
+        "session_id": "cli-a",
+        "turn_id": "turn-a",
+        "cwd": "/tmp/project-a"
+      },
+      "expect": {
+        "sessions": {
+          "cli-a": {
+            "state": "permission",
+            "label": "Awaiting permission",
+            "startedAt": 0,
+            "turnId": "turn-a"
+          },
+          "cli-b": {
+            "state": "tool"
+          }
+        },
+        "lead": "cli-a"
+      }
+    }
+  ]
+}

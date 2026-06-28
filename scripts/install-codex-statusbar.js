@@ -8,22 +8,27 @@ const repoRoot = path.resolve(__dirname, "..");
 const hooksPath = path.join(home, ".codex", "hooks.json");
 const markers = [
   "codex-status-writer.js",
+  "codex-lifecycle-writer.js",
   "codex-hook-logger.js",
 ];
 const nodePath = process.execPath;
 const bundledWriterPath = path.join(__dirname, "codex-status-writer.js");
+const bundledLifecyclePath = path.join(__dirname, "codex-lifecycle-writer.js");
 const repoWriterPath = path.join(repoRoot, "scripts", "codex-status-writer.js");
+const repoLifecyclePath = path.join(repoRoot, "scripts", "codex-lifecycle-writer.js");
 const writerPath = fs.existsSync(bundledWriterPath) ? bundledWriterPath : repoWriterPath;
+const lifecyclePath = fs.existsSync(bundledLifecyclePath) ? bundledLifecyclePath : repoLifecyclePath;
 
 const events = [
-  ["SessionStart", ""],
-  ["UserPromptSubmit", ""],
-  ["PreToolUse", "*"],
-  ["PermissionRequest", "*"],
-  ["PostToolUse", "*"],
-  ["Stop", ""],
-  ["SubagentStart", ""],
-  ["SubagentStop", ""],
+  ["SessionStart", "", lifecyclePath],
+  ["SessionEnd", "", lifecyclePath],
+  ["UserPromptSubmit", "", writerPath],
+  ["PreToolUse", "*", writerPath],
+  ["PermissionRequest", "*", writerPath],
+  ["PostToolUse", "*", writerPath],
+  ["Stop", "", writerPath],
+  ["SubagentStart", "", writerPath],
+  ["SubagentStop", "", writerPath],
 ];
 
 function readSettings() {
@@ -40,9 +45,9 @@ function stripOurs(entries) {
     .filter((entry) => (entry.hooks || []).length > 0);
 }
 
-function addHook(settings, event, matcher) {
+function addHook(settings, event, matcher, commandPath) {
   settings.hooks[event] = stripOurs(settings.hooks[event]);
-  const command = `"${nodePath}" "${writerPath}" ${event}`;
+  const command = `"${nodePath}" "${commandPath}" ${event}`;
   const hook = {
     type: "command",
     command,
@@ -56,6 +61,9 @@ function addHook(settings, event, matcher) {
 function main() {
   if (!fs.existsSync(writerPath)) {
     throw new Error(`Writer not found: ${writerPath}`);
+  }
+  if (!fs.existsSync(lifecyclePath)) {
+    throw new Error(`Lifecycle writer not found: ${lifecyclePath}`);
   }
 
   const settings = readSettings();
@@ -72,15 +80,15 @@ function main() {
     if (settings.hooks[event].length === 0) delete settings.hooks[event];
   }
 
-  for (const [event, matcher] of events) {
+  for (const [event, matcher, commandPath] of events) {
     if (!settings.hooks[event]) settings.hooks[event] = [];
-    addHook(settings, event, matcher);
+    addHook(settings, event, matcher, commandPath);
   }
 
   fs.writeFileSync(hooksPath, `${JSON.stringify(settings, null, 2)}\n`);
   console.log(`Installed Codex Status Bar hooks into ${hooksPath}`);
   console.log(`Backup: ${backupPath}`);
-  console.log(`State: ${path.join(home, ".codex", "statusbar", "state.json")}`);
+  console.log(`State directory: ${path.join(home, ".codex", "statusbar", "state.d")}`);
 }
 
 try {

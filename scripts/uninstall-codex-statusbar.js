@@ -6,6 +6,7 @@ const path = require("path");
 const hooksPath = path.join(os.homedir(), ".codex", "hooks.json");
 const markers = [
   "codex-status-writer.js",
+  "codex-lifecycle-writer.js",
   "codex-hook-logger.js",
 ];
 
