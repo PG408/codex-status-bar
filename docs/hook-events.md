@@ -21,7 +21,10 @@ Each session file contains display metadata only:
 | `sessionId` | Sanitized `session_id` or `sessionId`; also used as the state filename. |
 | `turnId` | Sanitized `turn_id` or `turnId` for same-session stale event protection. |
 | `pid` | Hook parent process id. |
-| `entrypoint` | Surface tag such as `cli`, `codex-desktop`, `manual`, or `dev` when known. |
+| `entrypoint` | Normalized surface tag such as `cli`, `codex-desktop`, `manual`, `dev`, or `unknown`. |
+| `entrypointSource` | Evidence used to resolve the surface: `payload`, `env`, `termProgram`, `process`, `previous`, or `unknown`. |
+| `termProgram` | Terminal/editor environment value for CLI sessions, such as `Apple_Terminal`, `iTerm.app`, `WarpTerminal`, `vscode`, or `ghostty`. |
+| `focusTarget` | Click-focus target. Desktop sessions use `{ "kind": "bundle", "bundleId": "com.openai.codex" }`; CLI sessions use `{ "kind": "app", "appName": "..." }`; unknown sessions use `{ "kind": "none" }`. |
 | `started` | `false` for lifecycle-created idle sessions; `true` after visible activity. |
 | `startedAt` | Unix timestamp seconds for timer display; `0` when no timer should be shown. |
 | `ts` | Unix timestamp seconds, with millisecond precision, when the session state was written. |
@@ -29,6 +32,19 @@ Each session file contains display metadata only:
 | `minVisibleUntilMs` | Optional lower bound for tool or permission visibility. |
 
 The writer does not store prompts, command output, transcript contents, or secrets.
+
+## Surface Resolution
+
+Both writers use the same surface resolver. Resolution order is:
+
+1. explicit payload fields: `entrypoint`, `entry_point`, `term_program`, or `termProgram`
+2. explicit environment override: `CODEX_STATUSBAR_ENTRYPOINT` or `CODEX_ENTRYPOINT`
+3. terminal environment: `TERM_PROGRAM` implies `entrypoint: "cli"`
+4. process evidence: a hook parent process under `Codex.app` implies `entrypoint: "codex-desktop"`
+5. previous state for the same session
+6. `unknown`
+
+This keeps CLI sessions working through terminal environment inheritance while allowing Codex Desktop sessions to be identified when the hook payload does not include an entrypoint.
 
 ## Writer Split
 

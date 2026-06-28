@@ -2,6 +2,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { resolveSessionSurface } = require("./lib/session-surface");
 
 const event = process.argv[2] || "unknown";
 const home = os.homedir();
@@ -38,20 +39,6 @@ function sessionIdFor(payload) {
   return safeId(payload.session_id || payload.sessionId);
 }
 
-function entrypointFor(payload) {
-  if (typeof payload.entrypoint === "string" && payload.entrypoint) return payload.entrypoint;
-  if (typeof payload.entry_point === "string" && payload.entry_point) return payload.entry_point;
-  if (process.env.CODEX_STATUSBAR_ENTRYPOINT) return process.env.CODEX_STATUSBAR_ENTRYPOINT;
-  if (process.env.CODEX_ENTRYPOINT) return process.env.CODEX_ENTRYPOINT;
-  return process.env.TERM_PROGRAM ? "cli" : "";
-}
-
-function termProgramFor(payload) {
-  if (typeof payload.term_program === "string" && payload.term_program) return payload.term_program;
-  if (typeof payload.termProgram === "string" && payload.termProgram) return payload.termProgram;
-  return process.env.TERM_PROGRAM || "";
-}
-
 function statePathFor(sessionId) {
   return path.join(stateDir, `${safeId(sessionId)}.json`);
 }
@@ -72,6 +59,8 @@ function run() {
 
   if (event === "SessionStart") {
     const now = Date.now() / 1000;
+    const pid = Number(process.ppid || 0);
+    const surface = resolveSessionSurface(payload, {}, process.env, { pid });
     writeJsonAtomic(statePath, {
       state: "idle",
       label: "",
@@ -79,9 +68,11 @@ function run() {
       project: basename(payload.cwd || payload.working_directory || payload.current_working_directory),
       sessionId,
       turnId: "",
-      pid: Number(process.ppid || 0),
-      entrypoint: entrypointFor(payload),
-      termProgram: termProgramFor(payload),
+      pid,
+      entrypoint: surface.entrypoint,
+      entrypointSource: surface.entrypointSource,
+      termProgram: surface.termProgram,
+      focusTarget: surface.focusTarget,
       started: false,
       startedAt: 0,
       ts: now,

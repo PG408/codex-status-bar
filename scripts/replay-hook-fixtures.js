@@ -82,13 +82,25 @@ function leadSessionId(sessions) {
 
 function assertExpected(actual, expected, fixtureName, stepIndex) {
   for (const [key, value] of Object.entries(expected || {})) {
-    if (actual[key] !== value) {
+    try {
+      assertDeepEqual(actual[key], value);
+    } catch {
       throw new Error(
         `${fixtureName} step ${stepIndex + 1}: expected ${key}=${JSON.stringify(value)}, got ${JSON.stringify(actual[key])}\n` +
           `actual=${JSON.stringify(actual, null, 2)}`
       );
     }
   }
+}
+
+function assertDeepEqual(actual, expected) {
+  if (expected && typeof expected === "object") {
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      throw new Error("not equal");
+    }
+    return;
+  }
+  if (actual !== expected) throw new Error("not equal");
 }
 
 function assertStep(stateDir, expected, fixtureName, stepIndex) {

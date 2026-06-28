@@ -2,6 +2,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { resolveSessionSurface } = require("./lib/session-surface");
 
 const event = process.argv[2] || "unknown";
 const home = os.homedir();
@@ -114,25 +115,11 @@ function isActiveTurn(payload, prev) {
   return turnId === prev.turnId;
 }
 
-function entrypointFor(payload, prev) {
-  if (typeof payload.entrypoint === "string" && payload.entrypoint) return payload.entrypoint;
-  if (typeof payload.entry_point === "string" && payload.entry_point) return payload.entry_point;
-  if (process.env.CODEX_STATUSBAR_ENTRYPOINT) return process.env.CODEX_STATUSBAR_ENTRYPOINT;
-  if (process.env.CODEX_ENTRYPOINT) return process.env.CODEX_ENTRYPOINT;
-  if (prev.entrypoint) return prev.entrypoint;
-  return process.env.TERM_PROGRAM ? "cli" : "";
-}
-
-function termProgramFor(payload, prev) {
-  if (typeof payload.term_program === "string" && payload.term_program) return payload.term_program;
-  if (typeof payload.termProgram === "string" && payload.termProgram) return payload.termProgram;
-  if (process.env.TERM_PROGRAM) return process.env.TERM_PROGRAM;
-  return prev.termProgram || "";
-}
-
 function stateFor(payload, prev, now, startedAt, state, label, toolName) {
   const sessionId = sessionIdFor(payload);
   const incomingTurnId = turnIdFor(payload);
+  const pid = Number(prev.pid || process.ppid || 0);
+  const surface = resolveSessionSurface(payload, prev, process.env, { pid });
   return {
     state,
     label,
@@ -140,9 +127,11 @@ function stateFor(payload, prev, now, startedAt, state, label, toolName) {
     project: basename(payload.cwd || payload.working_directory || payload.current_working_directory) || prev.project || "",
     sessionId,
     turnId: incomingTurnId || prev.turnId || "",
-    pid: Number(prev.pid || process.ppid || 0),
-    entrypoint: entrypointFor(payload, prev),
-    termProgram: termProgramFor(payload, prev),
+    pid,
+    entrypoint: surface.entrypoint,
+    entrypointSource: surface.entrypointSource,
+    termProgram: surface.termProgram,
+    focusTarget: surface.focusTarget,
     started: true,
     startedAt,
     ts: now,

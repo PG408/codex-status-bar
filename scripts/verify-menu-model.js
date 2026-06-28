@@ -17,6 +17,8 @@ const checks = [
   ["Swift refreshes open menu rows", swift.includes("refreshOpenMenuRows")],
   ["Swift supports Hide idle sessions", swift.includes("Hide idle sessions") && swift.includes("hideIdleAfter")],
   ["Swift supports session click focus", swift.includes("openSession(") && swift.includes("openCodex")],
+  ["Swift parses focus target", swift.includes("struct FocusTarget") && swift.includes("focusTarget")],
+  ["Swift supports process fallback focus", swift.includes("isCodexDesktopProcess")],
   ["Swift supports terminal program mapping", swift.includes("termProgram") && swift.includes("Apple_Terminal")],
   ["Swift supports CLI/APP badges", swift.includes("surfaceTag(") && swift.includes('return "APP"') && swift.includes('return "CLI"')],
   ["Docs mention Sessions menu", readme.includes("Sessions Menu") || docs.includes("Sessions Menu")],

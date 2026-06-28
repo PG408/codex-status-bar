@@ -48,7 +48,10 @@ This setting affects only menu row visibility. It does not delete `state.d` file
 
 Clicking a session row attempts to focus the corresponding surface:
 
-- Desktop or app entrypoints open or focus `Codex.app` through bundle id `com.openai.codex`.
-- CLI rows map `TERM_PROGRAM` / `termProgram` to a terminal or editor app such as Terminal, iTerm, Warp, or Visual Studio Code.
+- Desktop rows open or focus `Codex.app` through bundle id `com.openai.codex`.
+- CLI rows map `TERM_PROGRAM` / `termProgram` to a terminal or editor app such as Terminal, iTerm, Warp, Ghostty, or Visual Studio Code.
+- New state files prefer `focusTarget`; old state files fall back to `entrypoint`, `termProgram`, and Codex Desktop process detection.
 
 This is app-level focus only. Exact terminal tab/window focus is intentionally out of scope for Phase 3 because it usually requires extra Automation permissions.
+
+Surface detection is produced by the shared hook resolver documented in `docs/hook-events.md`. Unknown rows remain visible, but click focus is intentionally a no-op when no reliable target is known.

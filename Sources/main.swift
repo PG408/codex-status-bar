@@ -179,6 +179,18 @@ final class StatusController: NSObject, NSMenuDelegate {
     var animTimer: Timer?
 
     struct Session {
+        struct FocusTarget {
+            var kind: String
+            var bundleId: String
+            var appName: String
+
+            init(object: [String: Any]?) {
+                self.kind = object?["kind"] as? String ?? "none"
+                self.bundleId = object?["bundleId"] as? String ?? ""
+                self.appName = object?["appName"] as? String ?? ""
+            }
+        }
+
         var id: String
         var state: State
         var label: String
@@ -188,7 +200,9 @@ final class StatusController: NSObject, NSMenuDelegate {
         var turnId: String
         var pid: Int32
         var entrypoint: String
+        var entrypointSource: String
         var termProgram: String
+        var focusTarget: FocusTarget
         var started: Bool
         var startedAt: Double
         var ts: Double
@@ -205,7 +219,9 @@ final class StatusController: NSObject, NSMenuDelegate {
             self.turnId = object["turnId"] as? String ?? ""
             self.pid = Int32(truncatingIfNeeded: (object["pid"] as? NSNumber)?.intValue ?? 0)
             self.entrypoint = object["entrypoint"] as? String ?? ""
+            self.entrypointSource = object["entrypointSource"] as? String ?? ""
             self.termProgram = object["termProgram"] as? String ?? object["term_program"] as? String ?? ""
+            self.focusTarget = FocusTarget(object: object["focusTarget"] as? [String: Any])
             self.started = object["started"] as? Bool ?? false
             self.startedAt = (object["startedAt"] as? NSNumber)?.doubleValue ?? 0
             self.ts = (object["ts"] as? NSNumber)?.doubleValue ?? 0
@@ -649,11 +665,11 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func surfaceTag(for session: Session) -> String {
-        let surface = session.entrypoint.lowercased()
-        if surface.contains("desktop") || surface.contains("app") {
+        let target = focusTarget(for: session)
+        if target.kind == "bundle" {
             return "APP"
         }
-        if !surface.isEmpty || !session.termProgram.isEmpty {
+        if target.kind == "app" || session.entrypoint == "cli" || !session.termProgram.isEmpty {
             return "CLI"
         }
         return ""
@@ -723,43 +739,88 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func openSession(_ session: Session) {
-        let surface = session.entrypoint.lowercased()
-        if surface.contains("desktop") || surface.contains("app") {
-            openCodex()
-            return
+        let target = focusTarget(for: session)
+        switch target.kind {
+        case "bundle":
+            openCodex(bundleId: target.bundleId)
+        case "app":
+            openApplication(named: target.appName)
+        default:
+            break
         }
-        openTerminal(termProgram: session.termProgram)
     }
 
-    func openCodex() {
+    func focusTarget(for session: Session) -> Session.FocusTarget {
+        if session.focusTarget.kind != "none" {
+            return session.focusTarget
+        }
+        let surface = session.entrypoint.lowercased()
+        if surface == "codex-desktop" || surface == "desktop" || surface == "app" {
+            return Session.FocusTarget(object: ["kind": "bundle", "bundleId": "com.openai.codex"])
+        }
+        if surface == "cli", !session.termProgram.isEmpty {
+            return Session.FocusTarget(object: ["kind": "app", "appName": terminalAppName(for: session.termProgram)])
+        }
+        if isCodexDesktopProcess(pid: session.pid) {
+            return Session.FocusTarget(object: ["kind": "bundle", "bundleId": "com.openai.codex"])
+        }
+        return Session.FocusTarget(object: ["kind": "none"])
+    }
+
+    func openCodex(bundleId: String = "com.openai.codex") {
         let workspace = NSWorkspace.shared
-        if let url = workspace.urlForApplication(withBundleIdentifier: "com.openai.codex") {
+        if let url = workspace.urlForApplication(withBundleIdentifier: bundleId.isEmpty ? "com.openai.codex" : bundleId) {
             workspace.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
         } else {
             workspace.open(URL(fileURLWithPath: "/Applications/Codex.app"))
         }
     }
 
-    func openTerminal(termProgram: String) {
-        let app: String
+    func terminalAppName(for termProgram: String) -> String {
         switch termProgram {
         case "Apple_Terminal":
-            app = "Terminal"
+            return "Terminal"
         case "iTerm.app":
-            app = "iTerm"
+            return "iTerm"
         case "WarpTerminal":
-            app = "Warp"
+            return "Warp"
         case "vscode":
-            app = "Visual Studio Code"
-        case "":
-            return
+            return "Visual Studio Code"
         default:
-            app = termProgram
+            return termProgram
         }
+    }
+
+    func openApplication(named app: String) {
+        guard !app.isEmpty else { return }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         process.arguments = ["-a", app]
         try? process.run()
+    }
+
+    func isCodexDesktopProcess(pid: Int32) -> Bool {
+        let command = processCommand(pid: pid)
+        return command.contains("/Applications/Codex.app/")
+            || command.contains("Codex.app/Contents/Resources/codex app-server")
+    }
+
+    func processCommand(pid: Int32) -> String {
+        guard pid > 0 else { return "" }
+        let process = Process()
+        let pipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/bin/ps")
+        process.arguments = ["-p", String(pid), "-o", "command="]
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        } catch {
+            return ""
+        }
     }
 
     func effectiveState(for session: Session, now: Double) -> State {

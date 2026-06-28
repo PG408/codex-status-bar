@@ -16,6 +16,10 @@
             "state": "idle",
             "sessionId": "cli-main",
             "entrypoint": "cli",
+            "entrypointSource": "payload",
+            "focusTarget": {
+              "kind": "none"
+            },
             "started": false
           }
         },
@@ -38,6 +42,11 @@
           "desktop-main": {
             "state": "idle",
             "entrypoint": "codex-desktop",
+            "entrypointSource": "payload",
+            "focusTarget": {
+              "kind": "bundle",
+              "bundleId": "com.openai.codex"
+            },
             "project": "desktop-project"
           }
         },
