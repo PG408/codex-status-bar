@@ -41,6 +41,17 @@ Phase 2 upgrades the runtime model to Codex multi-session state:
 
 Still out of scope: session dropdown UI, click-to-focus, automatic updates, signing, notarization, and release packaging.
 
+## Phase 3 Scope
+
+Phase 3 adds the Sessions Menu:
+
+- `Sessions`, `Options`, `Icon`, and `Diagnostics` menu sections.
+- Custom session rows with project name, state icon, elapsed timer, and CLI/APP badge.
+- `Hide idle sessions` menu filtering that does not delete `state.d` files or affect lead-session aggregation.
+- Row click focus for Codex Desktop and CLI terminal/editor apps.
+
+The detailed behavior and focus boundaries are documented in `docs/sessions-menu.md`.
+
 ## Requirements
 
 - macOS 12 or later.

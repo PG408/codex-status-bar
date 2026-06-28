@@ -46,6 +46,12 @@ function entrypointFor(payload) {
   return process.env.TERM_PROGRAM ? "cli" : "";
 }
 
+function termProgramFor(payload) {
+  if (typeof payload.term_program === "string" && payload.term_program) return payload.term_program;
+  if (typeof payload.termProgram === "string" && payload.termProgram) return payload.termProgram;
+  return process.env.TERM_PROGRAM || "";
+}
+
 function statePathFor(sessionId) {
   return path.join(stateDir, `${safeId(sessionId)}.json`);
 }
@@ -75,6 +81,7 @@ function run() {
       turnId: "",
       pid: Number(process.ppid || 0),
       entrypoint: entrypointFor(payload),
+      termProgram: termProgramFor(payload),
       started: false,
       startedAt: 0,
       ts: now,

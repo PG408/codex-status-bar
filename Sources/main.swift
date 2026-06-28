@@ -1,5 +1,139 @@
 import Cocoa
 
+final class SessionRowView: NSView {
+    let id: String
+    var onClick: (() -> Void)?
+    private let iconView = NSImageView()
+    private let nameField = NSTextField(labelWithString: "")
+    private let timerField = NSTextField(labelWithString: "")
+    private let badgeView = NSImageView()
+    private let highlightView = NSVisualEffectView()
+    private let pad: CGFloat = 14
+    private let iconSize: CGFloat = 16
+    private let rowH: CGFloat = 24
+    private let timerW: CGFloat = 74
+    private var hovered = false
+    private var iconBaseTint: NSColor?
+    private var badgeNormal: NSImage?
+    private var badgeSelected: NSImage?
+
+    init(id: String, width: CGFloat) {
+        self.id = id
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: rowH))
+        autoresizingMask = [.width]
+
+        highlightView.material = .selection
+        highlightView.state = .active
+        highlightView.isEmphasized = true
+        highlightView.wantsLayer = true
+        highlightView.layer?.cornerRadius = 5
+        highlightView.isHidden = true
+        addSubview(highlightView)
+
+        iconView.frame = NSRect(x: pad, y: (rowH - iconSize) / 2, width: iconSize, height: iconSize)
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        iconView.autoresizingMask = [.maxXMargin]
+        addSubview(iconView)
+
+        nameField.font = .menuFont(ofSize: 0)
+        nameField.textColor = .labelColor
+        nameField.lineBreakMode = .byTruncatingTail
+        nameField.frame = NSRect(x: pad + iconSize + 8, y: (rowH - 16) / 2, width: 150, height: 16)
+        nameField.autoresizingMask = [.maxXMargin]
+        addSubview(nameField)
+
+        timerField.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.menuFont(ofSize: 0).pointSize - 2, weight: .regular)
+        timerField.textColor = .secondaryLabelColor
+        timerField.alignment = .right
+        timerField.autoresizingMask = [.minXMargin]
+        addSubview(timerField)
+
+        badgeView.imageScaling = .scaleNone
+        badgeView.autoresizingMask = [.minXMargin]
+        addSubview(badgeView)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func setIcon(_ image: NSImage?) {
+        iconView.image = image
+    }
+
+    func configure(icon: NSImage?, iconTint: NSColor?, name: String, timer: String?,
+                   badgeNormal: NSImage?, badgeSelected: NSImage?, badgeInset: CGFloat, timerGap: CGFloat) {
+        let w = bounds.width
+        iconView.image = icon
+        iconBaseTint = iconTint
+        iconView.contentTintColor = hovered ? .white : iconTint
+        nameField.stringValue = name
+
+        self.badgeNormal = badgeNormal
+        self.badgeSelected = badgeSelected
+        let badge = hovered ? badgeSelected : badgeNormal
+        var badgeLeft = w - badgeInset
+        if let badge {
+            badgeView.isHidden = false
+            badgeView.image = badge
+            badgeView.frame = NSRect(x: w - badgeInset - badge.size.width,
+                                     y: (rowH - badge.size.height) / 2,
+                                     width: badge.size.width,
+                                     height: badge.size.height)
+            badgeLeft = badgeView.frame.minX
+        } else {
+            badgeView.isHidden = true
+        }
+
+        if let timer {
+            timerField.isHidden = false
+            timerField.stringValue = timer
+            timerField.frame = NSRect(x: badgeLeft - timerGap - timerW,
+                                      y: (rowH - 16) / 2,
+                                      width: timerW,
+                                      height: 16)
+            nameField.frame.size.width = max(70, timerField.frame.minX - nameField.frame.minX - 8)
+        } else {
+            timerField.isHidden = true
+            nameField.frame.size.width = max(120, badgeLeft - nameField.frame.minX - 8)
+        }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        setHover(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        setHover(false)
+    }
+
+    private func setHover(_ value: Bool) {
+        hovered = value
+        highlightView.isHidden = !value
+        nameField.textColor = value ? .white : .labelColor
+        timerField.textColor = value ? .white : .secondaryLabelColor
+        iconView.contentTintColor = value ? .white : iconBaseTint
+        if !badgeView.isHidden {
+            badgeView.image = value ? badgeSelected : badgeNormal
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        highlightView.frame = bounds.insetBy(dx: 5, dy: 0)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        onClick?()
+    }
+}
+
 final class StatusController: NSObject, NSMenuDelegate {
     enum State: String {
         case idle
@@ -54,6 +188,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         var turnId: String
         var pid: Int32
         var entrypoint: String
+        var termProgram: String
         var started: Bool
         var startedAt: Double
         var ts: Double
@@ -70,6 +205,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             self.turnId = object["turnId"] as? String ?? ""
             self.pid = Int32(truncatingIfNeeded: (object["pid"] as? NSNumber)?.intValue ?? 0)
             self.entrypoint = object["entrypoint"] as? String ?? ""
+            self.termProgram = object["termProgram"] as? String ?? object["term_program"] as? String ?? ""
             self.started = object["started"] as? Bool ?? false
             self.startedAt = (object["startedAt"] as? NSNumber)?.doubleValue ?? 0
             self.ts = (object["ts"] as? NSNumber)?.doubleValue ?? 0
@@ -81,6 +217,12 @@ final class StatusController: NSObject, NSMenuDelegate {
     var sessions: [String: Session] = [:]
     var fileMTimes: [String: Date] = [:]
     var legacyMTime: Date = .distantPast
+    var menuIsOpen = false
+    var sessionMenuItems: [(item: NSMenuItem, id: String)] = []
+
+    var hideIdleAfter: TimeInterval {
+        UserDefaults.standard.object(forKey: "hideIdleAfter") as? Double ?? 1800
+    }
 
     var activeLabel = ""
     var activeStartedAt: Double = 0
@@ -140,14 +282,24 @@ final class StatusController: NSObject, NSMenuDelegate {
         tick()
     }
 
+    func menuWillOpen(_ menu: NSMenu) {
+        menuIsOpen = true
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        menuIsOpen = false
+        sessionMenuItems.removeAll()
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        sessionMenuItems.removeAll()
+        reloadSessions()
+        refreshEffectiveSessionStates()
 
-        let title = NSMenuItem(title: "Codex Status Bar", action: nil, keyEquivalent: "")
-        title.isEnabled = false
-        menu.addItem(title)
-        menu.addItem(.separator())
+        addSessionsSection(to: menu)
 
+        menu.addItem(header("Options"))
         let timerItem = NSMenuItem(title: "Show timer", action: #selector(toggleTimer), keyEquivalent: "")
         timerItem.target = self
         timerItem.state = showTimer ? .on : .off
@@ -163,6 +315,21 @@ final class StatusController: NSObject, NSMenuDelegate {
         soundsItem.state = playNotificationSounds ? .on : .off
         menu.addItem(soundsItem)
 
+        let hideParent = NSMenuItem(title: "Hide idle sessions", action: nil, keyEquivalent: "")
+        let hideMenu = NSMenu()
+        for (title, seconds) in [("5 minutes", 300.0), ("15 minutes", 900.0), ("30 minutes", 1800.0), ("1 hour", 3600.0), ("Never", 0.0)] {
+            let item = NSMenuItem(title: title, action: #selector(chooseHideIdle(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = seconds
+            item.state = hideIdleAfter == seconds ? .on : .off
+            hideMenu.addItem(item)
+        }
+        hideParent.submenu = hideMenu
+        menu.addItem(hideParent)
+
+        menu.addItem(.separator())
+
+        menu.addItem(header("Icon"))
         let colorItem = NSMenuItem(title: "Use system icon color", action: #selector(toggleIconColor), keyEquivalent: "")
         colorItem.target = self
         colorItem.state = iconSystem ? .on : .off
@@ -196,6 +363,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
+        menu.addItem(header("Diagnostics"))
 
         let revealItem = NSMenuItem(title: "Reveal State Directory", action: #selector(revealStateFile), keyEquivalent: "")
         revealItem.target = self
@@ -205,11 +373,48 @@ final class StatusController: NSObject, NSMenuDelegate {
         resetItem.target = self
         menu.addItem(resetItem)
 
+        let countItem = NSMenuItem(title: "Sessions: \(sessions.count)", action: nil, keyEquivalent: "")
+        countItem.isEnabled = false
+        menu.addItem(countItem)
+
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(title: "Quit Codex Status Bar", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
+    }
+
+    func header(_ title: String) -> NSMenuItem {
+        if #available(macOS 14.0, *) {
+            return NSMenuItem.sectionHeader(title: title)
+        }
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
+    }
+
+    func addSessionsSection(to menu: NSMenu) {
+        menu.addItem(header("Sessions"))
+        let visible = visibleMenuSessions()
+        if visible.isEmpty {
+            let empty = NSMenuItem(title: "No active Codex sessions", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            menu.addItem(empty)
+        } else {
+            for session in visible {
+                let row = SessionRowView(id: session.id, width: 310)
+                configureSessionRow(row, session)
+                let item = NSMenuItem()
+                item.view = row
+                row.onClick = { [weak self, weak menu] in
+                    menu?.cancelTracking()
+                    self?.openSession(session)
+                }
+                menu.addItem(item)
+                sessionMenuItems.append((item, session.id))
+            }
+        }
+        menu.addItem(.separator())
     }
 
     @objc func toggleTimer() {
@@ -233,6 +438,11 @@ final class StatusController: NSObject, NSMenuDelegate {
         iconSystem.toggle()
         UserDefaults.standard.set(iconSystem, forKey: "iconSystem")
         render(state: activeState, label: activeLabel, startedAt: activeStartedAt)
+    }
+
+    @objc func chooseHideIdle(_ sender: NSMenuItem) {
+        guard let seconds = sender.representedObject as? Double else { return }
+        UserDefaults.standard.set(seconds, forKey: "hideIdleAfter")
     }
 
     @objc func useCodexIconStyle() {
@@ -282,6 +492,9 @@ final class StatusController: NSObject, NSMenuDelegate {
     func tick() {
         reloadSessions()
         evaluate()
+        if menuIsOpen {
+            refreshOpenMenuRows()
+        }
     }
 
     func stateFileNames() -> [String] {
@@ -341,12 +554,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func evaluate() {
-        let now = Date().timeIntervalSince1970
-        for id in Array(sessions.keys) {
-            guard var session = sessions[id] else { continue }
-            session.effectiveState = effectiveState(for: session, now: now)
-            sessions[id] = session
-        }
+        refreshEffectiveSessionStates()
 
         guard let lead = sessions.values.max(by: { left, right in
             let leftPriority = priority(of: left.effectiveState)
@@ -382,6 +590,176 @@ final class StatusController: NSObject, NSMenuDelegate {
             logRender(state: .idle, label: "", startedAt: 0)
             render(state: .idle, label: "", startedAt: 0)
         }
+    }
+
+    func refreshEffectiveSessionStates() {
+        let now = Date().timeIntervalSince1970
+        for id in Array(sessions.keys) {
+            guard var session = sessions[id] else { continue }
+            session.effectiveState = effectiveState(for: session, now: now)
+            sessions[id] = session
+        }
+    }
+
+    func visibleMenuSessions() -> [Session] {
+        refreshEffectiveSessionStates()
+        let now = Date().timeIntervalSince1970
+        let ordered = sessions.values.sorted { left, right in
+            let leftPriority = priority(of: left.effectiveState)
+            let rightPriority = priority(of: right.effectiveState)
+            return leftPriority == rightPriority ? left.ts > right.ts : leftPriority > rightPriority
+        }
+
+        let filtered = ordered.filter { session in
+            let resting = priority(of: session.effectiveState) == 0
+            return !(hideIdleAfter > 0 && resting && now - session.ts > hideIdleAfter)
+        }
+        return filtered.isEmpty ? Array(ordered.prefix(1)) : filtered
+    }
+
+    func refreshOpenMenuRows() {
+        refreshEffectiveSessionStates()
+        for (item, id) in sessionMenuItems {
+            guard let session = sessions[id], let row = item.view as? SessionRowView else { continue }
+            configureSessionRow(row, session)
+        }
+    }
+
+    func configureSessionRow(_ row: SessionRowView, _ session: Session) {
+        let tag = surfaceTag(for: session)
+        row.configure(icon: sessionIcon(for: session),
+                      iconTint: sessionIconTint(for: session),
+                      name: truncated(sessionName(for: session), max: 22, keep: 21),
+                      timer: sessionTimer(for: session),
+                      badgeNormal: tag.isEmpty ? nil : badgeImage(tag),
+                      badgeSelected: tag.isEmpty ? nil : badgeImage(tag, selected: true),
+                      badgeInset: 12,
+                      timerGap: 10)
+    }
+
+    func sessionName(for session: Session) -> String {
+        session.project.isEmpty ? "session" : session.project
+    }
+
+    func sessionTimer(for session: Session) -> String? {
+        guard (session.effectiveState == .thinking || session.effectiveState == .tool), session.startedAt > 0 else {
+            return nil
+        }
+        return elapsed(max(0, Int(Date().timeIntervalSince1970 - session.startedAt)))
+    }
+
+    func surfaceTag(for session: Session) -> String {
+        let surface = session.entrypoint.lowercased()
+        if surface.contains("desktop") || surface.contains("app") {
+            return "APP"
+        }
+        if !surface.isEmpty || !session.termProgram.isEmpty {
+            return "CLI"
+        }
+        return ""
+    }
+
+    func sessionIcon(for session: Session) -> NSImage? {
+        switch session.effectiveState {
+        case .permission:
+            return symbolImage("exclamationmark.circle.fill", tint: amber)
+        case .thinking, .tool:
+            return symbolImage("progress.indicator") ?? symbolImage("rays")
+        case .idle, .done, .waiting:
+            return symbolImage("chevron.right")
+        }
+    }
+
+    func sessionIconTint(for session: Session) -> NSColor? {
+        switch session.effectiveState {
+        case .permission:
+            return amber
+        case .thinking, .tool:
+            return .labelColor
+        case .idle, .done, .waiting:
+            return .tertiaryLabelColor
+        }
+    }
+
+    func badgeImage(_ text: String, selected: Bool = false) -> NSImage {
+        let string = text as NSString
+        let font = NSFont.monospacedSystemFont(ofSize: 9.5, weight: .semibold)
+        let pad: CGFloat = 7
+        let height: CGFloat = 15
+        let dark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let bg = selected ? NSColor.white.withAlphaComponent(0.22)
+                          : (dark ? NSColor.white : NSColor.black).withAlphaComponent(dark ? 0.14 : 0.10)
+        let fg = selected ? NSColor.white : NSColor.labelColor
+        let width = ceil(string.size(withAttributes: [.font: font]).width) + pad * 2
+        return NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
+            bg.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: height / 2, yRadius: height / 2).fill()
+            let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: fg]
+            let textSize = string.size(withAttributes: attrs)
+            string.draw(at: NSPoint(x: (rect.width - textSize.width) / 2,
+                                    y: (rect.height - textSize.height) / 2 - 1),
+                        withAttributes: attrs)
+            return true
+        }
+    }
+
+    func symbolImage(_ name: String, tint: NSColor? = nil) -> NSImage? {
+        guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil) else { return nil }
+        if let tint {
+            return image.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [tint]))
+        }
+        image.isTemplate = true
+        return image
+    }
+
+    func truncated(_ value: String, max: Int, keep: Int) -> String {
+        value.count > max ? String(value.prefix(keep)) + "..." : value
+    }
+
+    func elapsed(_ seconds: Int) -> String {
+        let minutes = seconds / 60
+        let rest = seconds % 60
+        return minutes > 0 ? "\(minutes)m \(rest)s" : "\(rest)s"
+    }
+
+    func openSession(_ session: Session) {
+        let surface = session.entrypoint.lowercased()
+        if surface.contains("desktop") || surface.contains("app") {
+            openCodex()
+            return
+        }
+        openTerminal(termProgram: session.termProgram)
+    }
+
+    func openCodex() {
+        let workspace = NSWorkspace.shared
+        if let url = workspace.urlForApplication(withBundleIdentifier: "com.openai.codex") {
+            workspace.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        } else {
+            workspace.open(URL(fileURLWithPath: "/Applications/Codex.app"))
+        }
+    }
+
+    func openTerminal(termProgram: String) {
+        let app: String
+        switch termProgram {
+        case "Apple_Terminal":
+            app = "Terminal"
+        case "iTerm.app":
+            app = "iTerm"
+        case "WarpTerminal":
+            app = "Warp"
+        case "vscode":
+            app = "Visual Studio Code"
+        case "":
+            return
+        default:
+            app = termProgram
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-a", app]
+        try? process.run()
     }
 
     func effectiveState(for session: Session, now: Double) -> State {

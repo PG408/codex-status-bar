@@ -35,6 +35,7 @@ function writeState(state, label, tool = "") {
     turnId: state === "idle" || state === "done" ? "" : "manual-turn",
     pid: process.ppid,
     entrypoint: "manual",
+    termProgram: process.env.TERM_PROGRAM || "",
     started: state !== "idle",
     startedAt: state === "thinking" || state === "tool" ? now : 0,
     ts: now,

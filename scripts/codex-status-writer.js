@@ -123,6 +123,13 @@ function entrypointFor(payload, prev) {
   return process.env.TERM_PROGRAM ? "cli" : "";
 }
 
+function termProgramFor(payload, prev) {
+  if (typeof payload.term_program === "string" && payload.term_program) return payload.term_program;
+  if (typeof payload.termProgram === "string" && payload.termProgram) return payload.termProgram;
+  if (process.env.TERM_PROGRAM) return process.env.TERM_PROGRAM;
+  return prev.termProgram || "";
+}
+
 function stateFor(payload, prev, now, startedAt, state, label, toolName) {
   const sessionId = sessionIdFor(payload);
   const incomingTurnId = turnIdFor(payload);
@@ -135,6 +142,7 @@ function stateFor(payload, prev, now, startedAt, state, label, toolName) {
     turnId: incomingTurnId || prev.turnId || "",
     pid: Number(prev.pid || process.ppid || 0),
     entrypoint: entrypointFor(payload, prev),
+    termProgram: termProgramFor(payload, prev),
     started: true,
     startedAt,
     ts: now,
