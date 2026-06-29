@@ -2,6 +2,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { ensureStatusBarRunning } = require("./lib/hook-manager");
 const { resolveSessionSurface } = require("./lib/session-surface");
 
 const event = process.argv[2] || "unknown";
@@ -77,6 +78,7 @@ function run() {
       startedAt: 0,
       ts: now,
     });
+    ensureStatusBarRunning({ scriptDir: __dirname });
   } else if (event === "SessionEnd") {
     fs.rmSync(statePath, { force: true });
   }

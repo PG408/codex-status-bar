@@ -1,4 +1,5 @@
 import Cocoa
+import Darwin
 
 final class SessionRowView: NSView {
     let id: String
@@ -161,11 +162,14 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    let statusMenu = NSMenu()
     let defaultStateDir = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.d")
     let defaultLegacyStatePath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.json")
     let pollInterval: TimeInterval = 0.4
     let staleAfter: TimeInterval = 15 * 60
     let quietThinkingAfter: TimeInterval = 60
+    let orphanPruneAfter: TimeInterval = 2 * 60 * 60
+    let autoExitDelay: TimeInterval = 20
 
     var stateDir: String {
         ProcessInfo.processInfo.environment["CODEX_STATUSBAR_STATE_DIR"] ?? defaultStateDir
@@ -176,7 +180,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     var pollTimer: Timer?
-    var animTimer: Timer?
+    var notNeededSince: Date?
 
     struct Session {
         struct FocusTarget {
@@ -284,11 +288,16 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
         selectedPetId = defaults.string(forKey: "selectedPetId") ?? ""
 
-        let menu = NSMenu()
-        menu.delegate = self
-        statusItem.menu = menu
+        statusMenu.delegate = self
+        statusItem.menu = statusMenu
+        statusItem.isVisible = true
+        if let button = statusItem.button {
+            button.imageScaling = .scaleProportionallyDown
+            button.toolTip = "Codex Status Bar"
+        }
 
         render(state: .idle, label: "", startedAt: 0)
+        cleanupSessionFilesOnStartup()
 
         let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
             self?.tick()
@@ -296,6 +305,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         RunLoop.main.add(timer, forMode: .common)
         pollTimer = timer
         tick()
+        scheduleStartupHookRepair()
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -508,6 +518,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     func tick() {
         reloadSessions()
         evaluate()
+        evaluateAutoExit()
         if menuIsOpen {
             refreshOpenMenuRows()
         }
@@ -543,7 +554,10 @@ final class StatusController: NSObject, NSMenuDelegate {
             if fileMTimes[file] == mtime { continue }
             fileMTimes[file] = mtime
             guard let data = fm.contents(atPath: fullPath),
-                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                removeCorruptSessionFile(file)
+                continue
+            }
             let id = (file as NSString).deletingPathExtension
             sessions[id] = Session(json: object, id: id)
         }
@@ -571,6 +585,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func evaluate() {
         refreshEffectiveSessionStates()
+        cleanupDeadSessions()
 
         guard let lead = sessions.values.max(by: { left, right in
             let leftPriority = priority(of: left.effectiveState)
@@ -615,6 +630,51 @@ final class StatusController: NSObject, NSMenuDelegate {
             session.effectiveState = effectiveState(for: session, now: now)
             sessions[id] = session
         }
+    }
+
+    func cleanupSessionFilesOnStartup() {
+        try? FileManager.default.createDirectory(atPath: stateDir, withIntermediateDirectories: true)
+        let now = Date().timeIntervalSince1970
+        let fm = FileManager.default
+        for file in stateFileNames() {
+            let fullPath = (stateDir as NSString).appendingPathComponent(file)
+            guard let data = fm.contents(atPath: fullPath),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                removeCorruptSessionFile(file)
+                continue
+            }
+            let session = Session(json: object, id: (file as NSString).deletingPathExtension)
+            if session.pid > 0, !pidAlive(session.pid) {
+                removeDeadSession(session.id)
+                continue
+            }
+            if session.pid == 0, session.ts > 0, now - session.ts > orphanPruneAfter {
+                removeDeadSession(session.id)
+            }
+        }
+    }
+
+    func cleanupDeadSessions() {
+        for session in sessions.values {
+            if session.pid > 0, !pidAlive(session.pid) {
+                removeDeadSession(session.id)
+            } else if session.pid == 0, session.effectiveState == .idle, session.ts > 0,
+                      Date().timeIntervalSince1970 - session.ts > orphanPruneAfter {
+                removeDeadSession(session.id)
+            }
+        }
+    }
+
+    func removeCorruptSessionFile(_ file: String) {
+        try? FileManager.default.removeItem(atPath: (stateDir as NSString).appendingPathComponent(file))
+        fileMTimes[file] = nil
+        sessions[(file as NSString).deletingPathExtension] = nil
+    }
+
+    func removeDeadSession(_ id: String) {
+        try? FileManager.default.removeItem(atPath: (stateDir as NSString).appendingPathComponent(id + ".json"))
+        sessions[id] = nil
+        fileMTimes[id + ".json"] = nil
     }
 
     func visibleMenuSessions() -> [Session] {
@@ -815,11 +875,118 @@ final class StatusController: NSObject, NSMenuDelegate {
         process.standardError = Pipe()
         do {
             try process.run()
-            process.waitUntilExit()
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
             return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         } catch {
             return ""
+        }
+    }
+
+    func scheduleStartupHookRepair() {
+        guard ProcessInfo.processInfo.environment["CODEX_STATUSBAR_DISABLE_SELF_REPAIR"] != "1" else { return }
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            self?.runHookInstaller()
+        }
+    }
+
+    func installerPath() -> String {
+        (Bundle.main.resourcePath ?? "").appending("/install-codex-statusbar.js")
+    }
+
+    func runHookInstaller() {
+        let installer = installerPath()
+        guard FileManager.default.fileExists(atPath: installer),
+              let node = nodePathForInstaller() else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: node)
+        process.arguments = [installer]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        if (try? process.run()) != nil {
+            process.waitUntilExit()
+        }
+    }
+
+    func nodePathForInstaller() -> String? {
+        let env = ProcessInfo.processInfo.environment
+        var candidates: [String] = []
+        if let volta = env["VOLTA_HOME"] {
+            candidates.append((volta as NSString).appendingPathComponent("bin/node"))
+        }
+        candidates.append((NSHomeDirectory() as NSString).appendingPathComponent(".volta/bin/node"))
+        if let asdf = env["ASDF_DIR"] {
+            candidates.append((asdf as NSString).appendingPathComponent("shims/node"))
+        }
+        candidates.append((NSHomeDirectory() as NSString).appendingPathComponent(".asdf/shims/node"))
+        candidates.append(contentsOf: nvmNodeCandidates())
+        candidates.append("/opt/homebrew/bin/node")
+        candidates.append("/usr/local/bin/node")
+        candidates.append("/usr/bin/node")
+        for candidate in candidates where FileManager.default.isExecutableFile(atPath: candidate) {
+            return candidate
+        }
+        return pathFromEnv("node")
+    }
+
+    func nvmNodeCandidates() -> [String] {
+        let versionsDir = (NSHomeDirectory() as NSString).appendingPathComponent(".nvm/versions/node")
+        guard let versions = try? FileManager.default.contentsOfDirectory(atPath: versionsDir) else { return [] }
+        return versions.sorted().reversed().map {
+            ((versionsDir as NSString).appendingPathComponent($0) as NSString).appendingPathComponent("bin/node")
+        }
+    }
+
+    func pathFromEnv(_ executable: String) -> String? {
+        for dir in (ProcessInfo.processInfo.environment["PATH"] ?? "").split(separator: ":") {
+            let candidate = (String(dir) as NSString).appendingPathComponent(executable)
+            if FileManager.default.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    func pidAlive(_ pid: Int32) -> Bool {
+        guard pid > 0 else { return false }
+        return kill(pid, 0) == 0 || errno == EPERM
+    }
+
+    func hasLiveSession() -> Bool {
+        sessions.values.contains { session in
+            if [.permission, .tool, .thinking, .waiting].contains(session.effectiveState) {
+                return true
+            }
+            return session.pid > 0 && pidAlive(session.pid)
+        }
+    }
+
+    func codexDesktopProcessExists() -> Bool {
+        NSWorkspace.shared.runningApplications.contains { application in
+            if application.bundleIdentifier == "com.openai.codex" {
+                return true
+            }
+            if application.bundleURL?.path.contains("/Codex.app") == true {
+                return true
+            }
+            return application.localizedName == "Codex"
+        }
+    }
+
+    func evaluateAutoExit() {
+        guard ProcessInfo.processInfo.environment["CODEX_STATUSBAR_DISABLE_AUTO_EXIT"] != "1" else { return }
+        if codexDesktopProcessExists() || hasLiveSession() {
+            notNeededSince = nil
+            return
+        }
+
+        let now = Date()
+        if notNeededSince == nil {
+            notNeededSince = now
+            return
+        }
+        if let since = notNeededSince, now.timeIntervalSince(since) > autoExitDelay {
+            NSApp.terminate(nil)
         }
     }
 
@@ -898,25 +1065,9 @@ final class StatusController: NSObject, NSMenuDelegate {
         activeLabel = label
         activeStartedAt = startedAt
 
-        let shouldAnimate = shouldAnimate(state: state)
-        if shouldAnimate {
-            if animTimer == nil {
-                let timer = Timer(timeInterval: 0.12, repeats: true) { [weak self] _ in
-                    self?.animate()
-                }
-                RunLoop.main.add(timer, forMode: .common)
-                animTimer = timer
-            }
-        } else {
-            animTimer?.invalidate()
-            animTimer = nil
-            frameIndex = 0
-            statusItem.button?.image = icon(for: state, frame: frameIndex)
-        }
-
-        if statusItem.button?.image == nil {
-            statusItem.button?.image = icon(for: state, frame: frameIndex)
-        }
+        statusItem.isVisible = true
+        frameIndex = 0
+        statusItem.button?.image = icon(for: state, frame: frameIndex)
         applyTitle()
     }
 
@@ -939,17 +1090,12 @@ final class StatusController: NSObject, NSMenuDelegate {
         NSSound(named: NSSound.Name(name))?.play()
     }
 
-    func animate() {
-        frameIndex = (frameIndex + 1) % 12
-        statusItem.button?.image = icon(for: activeState, frame: frameIndex)
-        applyTitle()
-    }
-
     func applyTitle() {
         guard let button = statusItem.button else { return }
         var text = activeLabel
 
         if !showStatusText {
+            statusItem.length = NSStatusItem.squareLength
             button.imagePosition = .imageOnly
             button.attributedTitle = NSAttributedString(string: "")
             return
@@ -963,11 +1109,13 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
 
         if text.isEmpty {
+            statusItem.length = NSStatusItem.squareLength
             button.imagePosition = .imageOnly
             button.attributedTitle = NSAttributedString(string: "")
             return
         }
 
+        statusItem.length = NSStatusItem.variableLength
         button.imagePosition = .imageLeading
         let attrs: [NSAttributedString.Key: Any] = [
             .foregroundColor: NSColor.labelColor,

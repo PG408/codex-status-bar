@@ -55,6 +55,8 @@ Two hook writers are installed:
 | `scripts/codex-lifecycle-writer.js` | `SessionStart`, `SessionEnd` | Create or delete a session file. |
 | `scripts/codex-status-writer.js` | `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`, `SubagentStart`, `SubagentStop` | Update the corresponding session file for visible status changes. |
 
+After a successful `SessionStart` or visible activity write, the writer asks the shared hook manager to launch `CodexStatusBar.app` if it is not already running. This is the recovery path after crash, force quit, or automatic exit.
+
 ## Event Transitions
 
 | Event | Matcher | Writer behavior |
@@ -109,6 +111,12 @@ node scripts/replay-hook-fixtures.js two-cli-sessions.json
 ```
 
 The replay script creates an isolated temporary `CODEX_STATUSBAR_DIR`, invokes the lifecycle or status writer for each fixture step, verifies `state.d/`, rejects legacy `state.json` writes, and checks the expected lead session.
+
+Hook install/repair and hook-launched app behavior are verified by:
+
+```bash
+node scripts/verify-hook-manager.js
+```
 
 ## Current Fixtures
 

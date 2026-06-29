@@ -2,6 +2,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { ensureStatusBarRunning } = require("./lib/hook-manager");
 const { resolveSessionSurface } = require("./lib/session-surface");
 
 const event = process.argv[2] || "unknown";
@@ -160,20 +161,20 @@ function writeStateForEvent(payload) {
         statePathFor(sessionId),
         stateFor(payload, prev, now, startedAt, "thinking", "Codex thinking", toolName)
       );
-      return;
+      return true;
     }
     case "PreToolUse": {
-      if (!isActiveTurn(payload, prev)) return;
+      if (!isActiveTurn(payload, prev)) return false;
       if (!startedAt) startedAt = now;
       writeJsonAtomic(statePathFor(sessionId), {
         ...stateFor(payload, prev, now, startedAt, "tool", labelForTool(toolName), toolName),
         visibleUntilMs: nowMs + maxToolVisibleMs,
         minVisibleUntilMs: nowMs + minToolVisibleMs,
       });
-      return;
+      return true;
     }
     case "PostToolUse": {
-      if (!isActiveTurn(payload, prev)) return;
+      if (!isActiveTurn(payload, prev)) return false;
       if (prev.state !== "permission") {
         const waitMs = Math.max(0, Number(prev.minVisibleUntilMs || prev.visibleUntilMs || 0) - nowMs);
         if (prev.state === "tool" && waitMs > 0) {
@@ -186,26 +187,26 @@ function writeStateForEvent(payload) {
         statePathFor(sessionId),
         stateFor(payload, prev, afterWaitNow, startedAt, "thinking", "Codex thinking", toolName)
       );
-      return;
+      return true;
     }
     case "PermissionRequest":
       writeJsonAtomic(statePathFor(sessionId), {
         ...stateFor(payload, prev, now, 0, "permission", "Awaiting permission", toolName),
         minVisibleUntilMs: nowMs + minPermissionVisibleMs,
       });
-      return;
+      return true;
     case "Stop":
     case "SubagentStop":
-      if (!isActiveTurn(payload, prev)) return;
+      if (!isActiveTurn(payload, prev)) return false;
       writeJsonAtomic(
         statePathFor(sessionId),
         stateFor(payload, prev, now, 0, "done", "Done", toolName)
       );
-      return;
+      return true;
     case "SessionStart":
     case "SessionEnd":
     default:
-      return;
+      return false;
   }
 }
 
@@ -229,7 +230,9 @@ function run() {
         ...summarizePayload(payload),
       });
     }
-    writeStateForEvent(payload);
+    if (writeStateForEvent(payload)) {
+      ensureStatusBarRunning({ scriptDir: __dirname });
+    }
   } catch (error) {
     if (debugEnabled) {
       try {

@@ -42,6 +42,8 @@ cp scripts/codex-status-writer.js "$APP/Contents/Resources/codex-status-writer.j
 cp scripts/codex-lifecycle-writer.js "$APP/Contents/Resources/codex-lifecycle-writer.js"
 cp scripts/install-codex-statusbar.js "$APP/Contents/Resources/install-codex-statusbar.js"
 cp scripts/uninstall-codex-statusbar.js "$APP/Contents/Resources/uninstall-codex-statusbar.js"
+rm -rf "$APP/Contents/Resources/lib"
+cp -R scripts/lib "$APP/Contents/Resources/lib"
 chmod +x "$APP/Contents/Resources/codex-status-writer.js"
 chmod +x "$APP/Contents/Resources/codex-lifecycle-writer.js"
 chmod +x "$APP/Contents/Resources/install-codex-statusbar.js"

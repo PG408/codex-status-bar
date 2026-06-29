@@ -53,6 +53,17 @@ Phase 3 adds the Sessions Menu:
 
 The detailed behavior and focus boundaries are documented in `docs/sessions-menu.md`.
 
+## Phase 4 Scope
+
+Phase 4 adds lifecycle automation:
+
+- Startup self-check and hook repair for first launch, version/path changes, missing hooks, and stale hook paths.
+- Shared Node/path/hook generation through `scripts/lib/hook-manager.js`.
+- Hook-triggered launch of `CodexStatusBar.app` after `SessionStart` or visible session activity.
+- PID-based liveness cleanup, corrupt state cleanup, old-format fallback pruning, and delayed auto-exit when no live Codex work remains.
+
+The lifecycle behavior, Node discovery, launch boundaries, and uninstall boundary are documented in `docs/lifecycle.md`.
+
 ## Requirements
 
 - macOS 12 or later.
@@ -121,11 +132,14 @@ Run the deterministic hook replay suite:
 
 ```bash
 node scripts/replay-hook-fixtures.js
+node scripts/verify-hook-manager.js
+node scripts/verify-session-surface.js
+node scripts/verify-menu-model.js
 ```
 
 Fixtures live under `fixtures/hook-events/`. The replay script runs `scripts/codex-status-writer.js` and `scripts/codex-lifecycle-writer.js` in an isolated temporary status directory, verifies `state.d/`, rejects legacy `state.json` writes, and checks the expected lead session.
 
-The current event model and surface resolution rules are documented in `docs/hook-events.md`.
+The current event model and surface resolution rules are documented in `docs/hook-events.md`; lifecycle automation is documented in `docs/lifecycle.md`.
 
 ## Install Hooks
 
