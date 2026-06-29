@@ -27,6 +27,8 @@ const checks = [
   ["Swift cleans corrupt session files", swift.includes("removeCorruptSessionFile")],
   ["Swift uses pid liveness cleanup", swift.includes("pidAlive") && swift.includes("removeDeadSession")],
   ["Swift supports idle auto exit", swift.includes("autoExitDelay") && swift.includes("evaluateAutoExit")],
+  ["Swift does not age live thinking into idle by quiet timeout", !swift.includes("quietThinkingAfter") && !swift.includes("quietAge")],
+  ["Swift stale active states require missing live pid", swift.includes("let hasLivePid = session.pid > 0 && pidAlive(session.pid)") && swift.includes("!hasLivePid")],
   ["Swift avoids high-frequency status item animation", !swift.includes("Timer(timeInterval: 0.12")],
   ["Swift uses standard status item menu binding", swift.includes("statusItem.menu = statusMenu") && !swift.includes("@objc func statusItemClicked")],
   ["Swift keeps image-only status item visible", swift.includes("statusItem.length = NSStatusItem.squareLength") && swift.includes("statusItem.isVisible = true")],

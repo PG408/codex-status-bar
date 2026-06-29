@@ -167,7 +167,6 @@ final class StatusController: NSObject, NSMenuDelegate {
     let defaultLegacyStatePath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.json")
     let pollInterval: TimeInterval = 0.4
     let staleAfter: TimeInterval = 15 * 60
-    let quietThinkingAfter: TimeInterval = 60
     let orphanPruneAfter: TimeInterval = 2 * 60 * 60
     let autoExitDelay: TimeInterval = 20
 
@@ -992,7 +991,8 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func effectiveState(for session: Session, now: Double) -> State {
         var state = session.state
-        if [.thinking, .tool, .permission, .waiting].contains(state), session.ts > 0 {
+        let hasLivePid = session.pid > 0 && pidAlive(session.pid)
+        if [.thinking, .tool, .permission, .waiting].contains(state), !hasLivePid, session.ts > 0 {
             let age = now - session.ts
             if age > staleAfter {
                 return .idle
@@ -1001,13 +1001,6 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         if state == .tool, session.visibleUntilMs > 0, now * 1000 > session.visibleUntilMs {
             state = .thinking
-        }
-
-        if state == .thinking, session.ts > 0 {
-            let quietAge = now - session.ts
-            if quietAge > quietThinkingAfter {
-                return .idle
-            }
         }
 
         return state

@@ -90,6 +90,8 @@ The Swift app aggregates all files in `state.d/` and renders one lead session in
 
 Within the same priority tier, the most recent `ts` wins.
 
+A live `thinking` session remains `thinking` until a matching `Stop` or `SubagentStop` writes `done`, `SessionEnd` removes the file, or Swift determines that the owning process is no longer alive. The UI does not downgrade a live `thinking` session merely because no new hook event arrived for a short period.
+
 ## Replay Verification
 
 Fixtures live in:

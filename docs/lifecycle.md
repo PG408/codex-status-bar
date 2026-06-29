@@ -53,6 +53,7 @@ Swift treats `state.d/<session_id>.json` as display state, not as permanent stor
 - A session with a dead `pid` is removed.
 - A corrupt or unparsable session file is removed.
 - Old `pid == 0` files are retained only temporarily and pruned after the orphan timeout.
+- Live active sessions are not aged out by a short quiet timeout; `thinking` remains visible until an explicit stop/end event or process liveness says otherwise.
 
 This keeps current sessions visible while preventing stale files from accumulating indefinitely.
 
