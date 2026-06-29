@@ -3,7 +3,7 @@
 Phase 3 adds a Sessions menu on top of the Phase 2 `state.d` model. The status bar still renders one lead session, selected by the same priority rule:
 
 1. `permission`
-2. `tool` or `thinking`
+2. `tool`, `thinking`, or `compacting`
 3. most recent `idle`, `done`, or `waiting`
 
 The menu lists sessions from:
@@ -27,7 +27,7 @@ Each session row is a custom AppKit view with:
 
 - status icon: permission, working, or resting
 - project name, truncated before it can overlap the timer or badge
-- elapsed timer for `thinking` and `tool`
+- elapsed timer for `thinking`, `tool`, and `compacting`
 - `CLI` or `APP` badge when the surface is known
 
 Hover uses the system selection material so text, icons, and badges stay readable in light and dark menu appearances.

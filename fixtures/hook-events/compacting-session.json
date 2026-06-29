@@ -1,0 +1,68 @@
+{
+  "name": "compacting-session",
+  "description": "Context compaction is shown as a first-class active state and returns to thinking after the compaction tool completes.",
+  "steps": [
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "compact",
+        "turn_id": "compact-turn",
+        "cwd": "/tmp/compact-project"
+      },
+      "expect": {
+        "sessions": {
+          "compact": {
+            "state": "thinking",
+            "label": "Codex thinking",
+            "sessionId": "compact",
+            "turnId": "compact-turn",
+            "project": "compact-project",
+            "started": true
+          }
+        },
+        "lead": "compact"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "compact",
+        "turn_id": "compact-turn",
+        "cwd": "/tmp/compact-project",
+        "tool_name": "Compact"
+      },
+      "expect": {
+        "sessions": {
+          "compact": {
+            "state": "compacting",
+            "label": "Compacting",
+            "tool": "Compact",
+            "turnId": "compact-turn",
+            "started": true
+          }
+        },
+        "lead": "compact"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "payload": {
+        "session_id": "compact",
+        "turn_id": "compact-turn",
+        "cwd": "/tmp/compact-project",
+        "tool_name": "Compact"
+      },
+      "expect": {
+        "sessions": {
+          "compact": {
+            "state": "thinking",
+            "label": "Codex thinking",
+            "turnId": "compact-turn",
+            "started": true
+          }
+        },
+        "lead": "compact"
+      }
+    }
+  ]
+}

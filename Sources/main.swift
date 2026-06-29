@@ -141,6 +141,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         case done
         case thinking
         case tool
+        case compacting
         case permission
         case waiting
     }
@@ -598,7 +599,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         let state = lead.effectiveState
         let label = statusLabel(for: lead)
-        let startedAt = state == .thinking || state == .tool ? lead.startedAt : 0
+        let startedAt = state == .thinking || state == .tool || state == .compacting ? lead.startedAt : 0
 
         switch state {
         case .thinking:
@@ -607,6 +608,9 @@ final class StatusController: NSObject, NSMenuDelegate {
         case .tool:
             logRender(state: .tool, label: label, startedAt: startedAt)
             render(state: .tool, label: label.isEmpty ? "Working..." : label, startedAt: startedAt)
+        case .compacting:
+            logRender(state: .compacting, label: label, startedAt: startedAt)
+            render(state: .compacting, label: label.isEmpty ? "Compacting" : label, startedAt: startedAt)
         case .permission:
             logRender(state: .permission, label: label, startedAt: 0)
             render(state: .permission, label: label.isEmpty ? "Awaiting permission" : label, startedAt: 0)
@@ -717,7 +721,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func sessionTimer(for session: Session) -> String? {
-        guard (session.effectiveState == .thinking || session.effectiveState == .tool), session.startedAt > 0 else {
+        guard (session.effectiveState == .thinking || session.effectiveState == .tool || session.effectiveState == .compacting), session.startedAt > 0 else {
             return nil
         }
         return elapsed(max(0, Int(Date().timeIntervalSince1970 - session.startedAt)))
@@ -738,7 +742,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         switch session.effectiveState {
         case .permission:
             return symbolImage("exclamationmark.circle.fill", tint: amber)
-        case .thinking, .tool:
+        case .thinking, .tool, .compacting:
             return symbolImage("progress.indicator") ?? symbolImage("rays")
         case .idle, .done, .waiting:
             return symbolImage("chevron.right")
@@ -749,7 +753,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         switch session.effectiveState {
         case .permission:
             return amber
-        case .thinking, .tool:
+        case .thinking, .tool, .compacting:
             return .labelColor
         case .idle, .done, .waiting:
             return .tertiaryLabelColor
@@ -953,7 +957,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func hasLiveSession() -> Bool {
         sessions.values.contains { session in
-            if [.permission, .tool, .thinking, .waiting].contains(session.effectiveState) {
+            if [.permission, .tool, .thinking, .compacting, .waiting].contains(session.effectiveState) {
                 return true
             }
             return session.pid > 0 && pidAlive(session.pid)
@@ -992,7 +996,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     func effectiveState(for session: Session, now: Double) -> State {
         var state = session.state
         let hasLivePid = session.pid > 0 && pidAlive(session.pid)
-        if [.thinking, .tool, .permission, .waiting].contains(state), !hasLivePid, session.ts > 0 {
+        if [.thinking, .tool, .compacting, .permission, .waiting].contains(state), !hasLivePid, session.ts > 0 {
             let age = now - session.ts
             if age > staleAfter {
                 return .idle
@@ -1010,7 +1014,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         switch state {
         case .permission:
             return 2
-        case .thinking, .tool:
+        case .thinking, .tool, .compacting:
             return 1
         case .idle, .done, .waiting:
             return 0
@@ -1023,6 +1027,8 @@ final class StatusController: NSObject, NSMenuDelegate {
             return session.label.isEmpty ? "Thinking..." : session.label
         case .tool:
             return session.label.isEmpty ? "Working..." : session.label
+        case .compacting:
+            return session.label.isEmpty ? "Compacting" : session.label
         case .permission:
             return session.label.isEmpty ? "Awaiting permission" : session.label
         case .waiting:
@@ -1074,7 +1080,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             playSystemSound(named: "Ping")
         case .done:
             playSystemSound(named: "Glass")
-        case .idle, .thinking, .tool, .waiting:
+        case .idle, .thinking, .tool, .compacting, .waiting:
             return
         }
     }
@@ -1122,7 +1128,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         switch state {
         case .permission:
             color = amber
-        case .tool:
+        case .tool, .compacting:
             color = iconSystem ? nil : blue
         default:
             color = iconSystem ? nil : codexGreen
@@ -1192,7 +1198,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func appIcon(source: NSImage, state: State, frame: Int, isTemplate: Bool) -> NSImage {
         let size: CGFloat = 18
-        let active = state == .thinking || state == .tool
+        let active = state == .thinking || state == .tool || state == .compacting
         let pulseScale = active ? 0.94 + 0.06 * pulse(frame: frame, index: 0) : 1
         let drawSize = size * pulseScale
         let origin = (size - drawSize) / 2
@@ -1211,7 +1217,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func tintedAppIcon(source: NSImage, color: NSColor, state: State, frame: Int) -> NSImage {
         let size: CGFloat = 18
-        let active = state == .thinking || state == .tool
+        let active = state == .thinking || state == .tool || state == .compacting
         let pulseScale = active ? 0.94 + 0.06 * pulse(frame: frame, index: 0) : 1
         let drawSize = size * pulseScale
         let origin = (size - drawSize) / 2
@@ -1302,7 +1308,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func shouldAnimate(state: State) -> Bool {
         switch state {
-        case .thinking, .tool:
+        case .thinking, .tool, .compacting:
             return true
         case .permission, .waiting:
             return iconStyle == .pet
@@ -1315,7 +1321,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         switch state {
         case .thinking:
             return PetAnimation(row: 8, frames: 6)
-        case .tool:
+        case .tool, .compacting:
             return PetAnimation(row: 7, frames: 6)
         case .permission, .waiting:
             return PetAnimation(row: 6, frames: 6)
@@ -1328,7 +1334,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         let size: CGFloat = 18
         let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
             let drawColor = color ?? NSColor.labelColor
-            let active = state == .thinking || state == .tool
+            let active = state == .thinking || state == .tool || state == .compacting
             let center = NSPoint(x: rect.midX, y: rect.midY)
             let phase = CGFloat(active ? frame % 12 : 0)
             let rotation = active ? phase * (.pi / 18) : 0

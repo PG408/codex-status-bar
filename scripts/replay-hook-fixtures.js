@@ -62,6 +62,7 @@ function priority(session) {
       return 2;
     case "thinking":
     case "tool":
+    case "compacting":
       return 1;
     default:
       return 0;

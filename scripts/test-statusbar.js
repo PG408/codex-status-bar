@@ -37,7 +37,7 @@ function writeState(state, label, tool = "") {
     entrypoint: "manual",
     termProgram: process.env.TERM_PROGRAM || "",
     started: state !== "idle",
-    startedAt: state === "thinking" || state === "tool" ? now : 0,
+    startedAt: state === "thinking" || state === "tool" || state === "compacting" ? now : 0,
     ts: now,
   };
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
@@ -103,20 +103,28 @@ async function main() {
     },
     {
       id: 4,
+      name: "Compacting",
+      state: "compacting",
+      label: "Compacting",
+      tool: "Compact",
+      expected: "Active icon plus 'Compacting' and a timer.",
+    },
+    {
+      id: 5,
       name: "Permission",
       state: "permission",
       label: "Awaiting permission",
       expected: "Yellow dot plus 'Awaiting permission'; no timer.",
     },
     {
-      id: 5,
+      id: 6,
       name: "Waiting",
       state: "waiting",
       label: "Waiting",
       expected: "Static icon plus 'Waiting'; no timer.",
     },
     {
-      id: 6,
+      id: 7,
       name: "Done clears to resting icon",
       state: "done",
       label: "Done",

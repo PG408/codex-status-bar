@@ -14,7 +14,7 @@ Each session file contains display metadata only:
 
 | Field | Purpose |
 |---|---|
-| `state` | One of `idle`, `done`, `thinking`, `tool`, `permission`, or `waiting`. |
+| `state` | One of `idle`, `done`, `thinking`, `tool`, `compacting`, `permission`, or `waiting`. |
 | `label` | Short menu bar label such as `Codex thinking`, `Running command`, or `Awaiting permission`. |
 | `tool` | Raw tool name when available. |
 | `project` | Basename of `cwd`, `working_directory`, or `current_working_directory`. |
@@ -64,7 +64,7 @@ After a successful `SessionStart` or visible activity write, the writer asks the
 | `SessionStart` | none | Creates `idle` session state with `started: false`. |
 | `SessionEnd` | none | Deletes that session's state file. |
 | `UserPromptSubmit` | none | Writes `thinking`, `Codex thinking`, a non-zero `startedAt`, `started: true`, and the incoming `turnId`. |
-| `PreToolUse` | `*` | If the payload matches that session's active `turnId`, writes `tool` and maps the tool name to a short label. |
+| `PreToolUse` | `*` | If the payload matches that session's active `turnId`, writes `tool` and maps the tool name to a short label. Compaction-related tools write `compacting`, `Compacting`. |
 | `PostToolUse` | `*` | If the payload matches that session's active `turnId`, returns to `thinking` and preserves the timer. |
 | `PermissionRequest` | `*` | Writes `permission`, `Awaiting permission`, `started: true`, and clears `startedAt`. |
 | `Stop` | none | If the payload matches that session's active `turnId`, writes `done`, `Done`, and clears `startedAt`. |
@@ -85,12 +85,12 @@ Tool and stop events must match the target session file before they can overwrit
 The Swift app aggregates all files in `state.d/` and renders one lead session in the menu bar:
 
 1. `permission`
-2. `tool` or `thinking`
+2. `tool`, `thinking`, or `compacting`
 3. `idle`, `done`, or `waiting`
 
 Within the same priority tier, the most recent `ts` wins.
 
-A live `thinking` session remains `thinking` until a matching `Stop` or `SubagentStop` writes `done`, `SessionEnd` removes the file, or Swift determines that the owning process is no longer alive. The UI does not downgrade a live `thinking` session merely because no new hook event arrived for a short period.
+A live `thinking` or `compacting` session remains active until a matching `Stop` or `SubagentStop` writes `done`, `SessionEnd` removes the file, or Swift determines that the owning process is no longer alive. The UI does not downgrade a live active session merely because no new hook event arrived for a short period.
 
 ## Replay Verification
 
@@ -128,3 +128,4 @@ node scripts/verify-hook-manager.js
 | `cli-desktop-parallel.json` | CLI and desktop sessions coexist; desktop permission request becomes lead and lifecycle end removes the file. |
 | `stale-background-cannot-win.json` | Old same-session tool events and background sessions cannot displace a permission lead. |
 | `subagent-session.json` | `SubagentStart` and `SubagentStop` update the corresponding session file. |
+| `compacting-session.json` | Context compaction is shown as `compacting`, then returns to `thinking` after the compaction tool completes. |

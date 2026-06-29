@@ -15,6 +15,7 @@ const labels = {
   done: "Done",
   thinking: "Thinking...",
   tool: "Running command",
+  compacting: "Compacting",
   permission: "Awaiting permission",
   waiting: "Waiting",
 };
@@ -25,6 +26,7 @@ if (stateArg === "latency") {
   const sequence = [
     ["thinking", "Latency thinking"],
     ["tool", "Latency tool"],
+    ["compacting", "Latency compacting"],
     ["permission", "Latency permission"],
     ["idle", ""],
   ];
@@ -38,17 +40,17 @@ if (stateArg === "latency") {
 
 if (stateArg !== "demo" && !Object.prototype.hasOwnProperty.call(labels, stateArg)) {
   console.error(`Unknown state: ${stateArg}`);
-  console.error("Use one of: idle, done, thinking, tool, permission, waiting, demo, latency");
+  console.error("Use one of: idle, done, thinking, tool, compacting, permission, waiting, demo, latency");
   process.exit(2);
 }
 
 function writeState(state, label) {
   const now = Math.floor(Date.now() / 1000);
-  const startedAt = state === "thinking" || state === "tool" ? now : 0;
+  const startedAt = state === "thinking" || state === "tool" || state === "compacting" ? now : 0;
   const out = {
     state,
     label: labelArg || label,
-    tool: state === "tool" ? "Bash" : "",
+    tool: state === "tool" ? "Bash" : state === "compacting" ? "Compact" : "",
     project: path.basename(process.cwd()),
     sessionId,
     turnId: state === "idle" || state === "done" ? "" : "dev-turn",
@@ -71,6 +73,7 @@ async function demo() {
   const sequence = [
     ["thinking", "Thinking..."],
     ["tool", "Running command"],
+    ["compacting", "Compacting"],
     ["thinking", "Thinking..."],
     ["permission", "Awaiting permission"],
     ["tool", "Editing"],

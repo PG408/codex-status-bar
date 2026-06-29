@@ -90,6 +90,18 @@ function labelForTool(toolName) {
   return labels[toolName] || "Using tool";
 }
 
+function isCompactionTool(toolName, payload) {
+  const values = [
+    toolName,
+    payload.tool,
+    payload.name,
+    payload.status,
+    payload.reason,
+    payload.kind,
+  ].map((value) => String(value || "").toLowerCase());
+  return values.some((value) => value.includes("compact") || value.includes("compaction"));
+}
+
 function sessionIdFor(payload) {
   return safeId(payload.session_id || payload.sessionId);
 }
@@ -166,8 +178,10 @@ function writeStateForEvent(payload) {
     case "PreToolUse": {
       if (!isActiveTurn(payload, prev)) return false;
       if (!startedAt) startedAt = now;
+      const state = isCompactionTool(toolName, payload) ? "compacting" : "tool";
+      const label = state === "compacting" ? "Compacting" : labelForTool(toolName);
       writeJsonAtomic(statePathFor(sessionId), {
-        ...stateFor(payload, prev, now, startedAt, "tool", labelForTool(toolName), toolName),
+        ...stateFor(payload, prev, now, startedAt, state, label, toolName),
         visibleUntilMs: nowMs + maxToolVisibleMs,
         minVisibleUntilMs: nowMs + minToolVisibleMs,
       });

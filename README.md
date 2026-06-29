@@ -7,7 +7,7 @@ Codex Status Bar is a small macOS menu bar app that displays the live status of 
 In scope:
 
 - Build a local `CodexStatusBar.app` from the project root.
-- Render `idle`, `thinking`, `tool`, `permission`, and `done` states in the macOS menu bar.
+- Render `idle`, `thinking`, `tool`, `compacting`, `permission`, and `done` states in the macOS menu bar.
 - Write and read the single local state file at `~/.codex/statusbar/state.json`.
 - Install Codex hooks into `~/.codex/hooks.json` without removing unrelated hooks.
 - Provide local scripts for manual state testing and hook uninstall.
@@ -36,7 +36,7 @@ Phase 2 upgrades the runtime model to Codex multi-session state:
 - Write new status updates to `~/.codex/statusbar/state.d/<session_id>.json`.
 - Use a lifecycle writer for `SessionStart` and `SessionEnd`.
 - Aggregate multiple session files in Swift and render one lead session.
-- Select the lead by `permission` first, then `tool/thinking`, then most-recent idle/done state.
+- Select the lead by `permission` first, then `tool/thinking/compacting`, then most-recent idle/done state.
 - Keep old `state.json` as a read-only fallback when `state.d/` is empty.
 
 Still out of scope: session dropdown UI, click-to-focus, automatic updates, signing, notarization, and release packaging.
@@ -115,6 +115,7 @@ The app polls `~/.codex/statusbar/state.d/` every 0.4 seconds. Use the developme
 node scripts/dev-state.js idle
 node scripts/dev-state.js thinking
 node scripts/dev-state.js tool
+node scripts/dev-state.js compacting
 node scripts/dev-state.js permission
 node scripts/dev-state.js done
 ```
