@@ -53,7 +53,7 @@ Swift treats `state.d/<session_id>.json` as display state, not as permanent stor
 - A session with a dead `pid` is removed.
 - A corrupt or unparsable session file is removed.
 - Old `pid == 0` files are retained only temporarily and pruned after the orphan timeout.
-- Live active sessions are not aged out by a short quiet timeout; `thinking` and `compacting` remain visible until an explicit stop/end event or process liveness says otherwise.
+- Live active sessions are not aged out by a short quiet timeout; `thinking` and `compacting` remain visible until an explicit next-state event, stop/end event, or process liveness says otherwise.
 
 This keeps current sessions visible while preventing stale files from accumulating indefinitely.
 
@@ -65,7 +65,7 @@ The app exits after a delay when all conditions are true:
 - no live session exists
 - no `permission`, `tool`, `thinking`, `compacting`, or `waiting` session is visible
 
-The delay prevents short gaps between hook writes from causing premature exit. Active CLI sessions, permission prompts, and running tool/thinking sessions keep the status bar process alive.
+The delay prevents short gaps between hook writes from causing premature exit. Active CLI sessions, permission prompts, and running tool/thinking/compacting sessions keep the status bar process alive.
 
 ## Uninstall Boundary
 

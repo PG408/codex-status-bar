@@ -1,6 +1,6 @@
 {
   "name": "compacting-session",
-  "description": "Context compaction is shown as a first-class active state and returns to thinking after the compaction tool completes.",
+  "description": "Context compaction is shown as a first-class active state and returns to thinking after PostCompact.",
   "steps": [
     {
       "event": "UserPromptSubmit",
@@ -24,19 +24,18 @@
       }
     },
     {
-      "event": "PreToolUse",
+      "event": "PreCompact",
       "payload": {
         "session_id": "compact",
         "turn_id": "compact-turn",
-        "cwd": "/tmp/compact-project",
-        "tool_name": "Compact"
+        "cwd": "/tmp/compact-project"
       },
       "expect": {
         "sessions": {
           "compact": {
             "state": "compacting",
             "label": "Compacting",
-            "tool": "Compact",
+            "tool": "",
             "turnId": "compact-turn",
             "started": true
           }
@@ -45,12 +44,11 @@
       }
     },
     {
-      "event": "PostToolUse",
+      "event": "PostCompact",
       "payload": {
         "session_id": "compact",
         "turn_id": "compact-turn",
-        "cwd": "/tmp/compact-project",
-        "tool_name": "Compact"
+        "cwd": "/tmp/compact-project"
       },
       "expect": {
         "sessions": {

@@ -53,7 +53,7 @@ Two hook writers are installed:
 | Script | Events | Responsibility |
 |---|---|---|
 | `scripts/codex-lifecycle-writer.js` | `SessionStart`, `SessionEnd` | Create or delete a session file. |
-| `scripts/codex-status-writer.js` | `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`, `SubagentStart`, `SubagentStop` | Update the corresponding session file for visible status changes. |
+| `scripts/codex-status-writer.js` | `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `PostCompact`, `PermissionRequest`, `Stop`, `SubagentStart`, `SubagentStop` | Update the corresponding session file for visible status changes. |
 
 After a successful `SessionStart` or visible activity write, the writer asks the shared hook manager to launch `CodexStatusBar.app` if it is not already running. This is the recovery path after crash, force quit, or automatic exit.
 
@@ -64,8 +64,10 @@ After a successful `SessionStart` or visible activity write, the writer asks the
 | `SessionStart` | none | Creates `idle` session state with `started: false`. |
 | `SessionEnd` | none | Deletes that session's state file. |
 | `UserPromptSubmit` | none | Writes `thinking`, `Codex thinking`, a non-zero `startedAt`, `started: true`, and the incoming `turnId`. |
-| `PreToolUse` | `*` | If the payload matches that session's active `turnId`, writes `tool` and maps the tool name to a short label. Compaction-related tools write `compacting`, `Compacting`. |
+| `PreToolUse` | `*` | If the payload matches that session's active `turnId`, writes `tool` and maps the tool name to a short label. |
 | `PostToolUse` | `*` | If the payload matches that session's active `turnId`, returns to `thinking` and preserves the timer. |
+| `PreCompact` | none | If the payload matches that session's active `turnId`, writes `compacting`, `Compacting`, and preserves the active timer. |
+| `PostCompact` | none | If the payload matches that session's active `turnId`, returns to `thinking` and preserves the active timer. |
 | `PermissionRequest` | `*` | Writes `permission`, `Awaiting permission`, `started: true`, and clears `startedAt`. |
 | `Stop` | none | If the payload matches that session's active `turnId`, writes `done`, `Done`, and clears `startedAt`. |
 | `SubagentStart` | none | Starts a visible subagent turn with the same behavior as `UserPromptSubmit`. |
@@ -90,7 +92,7 @@ The Swift app aggregates all files in `state.d/` and renders one lead session in
 
 Within the same priority tier, the most recent `ts` wins.
 
-A live `thinking` or `compacting` session remains active until a matching `Stop` or `SubagentStop` writes `done`, `SessionEnd` removes the file, or Swift determines that the owning process is no longer alive. The UI does not downgrade a live active session merely because no new hook event arrived for a short period.
+A live `thinking` or `compacting` session remains active until a matching `PostCompact`, `Stop`, or `SubagentStop` writes the next explicit state, `SessionEnd` removes the file, or Swift determines that the owning process is no longer alive. The UI does not downgrade a live active session merely because no new hook event arrived for a short period.
 
 ## Replay Verification
 
@@ -128,4 +130,4 @@ node scripts/verify-hook-manager.js
 | `cli-desktop-parallel.json` | CLI and desktop sessions coexist; desktop permission request becomes lead and lifecycle end removes the file. |
 | `stale-background-cannot-win.json` | Old same-session tool events and background sessions cannot displace a permission lead. |
 | `subagent-session.json` | `SubagentStart` and `SubagentStop` update the corresponding session file. |
-| `compacting-session.json` | Context compaction is shown as `compacting`, then returns to `thinking` after the compaction tool completes. |
+| `compacting-session.json` | `PreCompact` shows context compaction as `compacting`, then `PostCompact` returns to `thinking`. |

@@ -2,12 +2,14 @@
 
 Codex Status Bar is a small macOS menu bar app that displays the live status of Codex sessions. The current baseline keeps the UI intentionally narrow: multiple local session state files, one visible menu bar item, and deterministic hook replay tests that can be used as the baseline for later session-menu work.
 
-## Phase 0 Scope
+## Historical Phase 0 Scope
+
+Phase 0 established the first local baseline.
 
 In scope:
 
 - Build a local `CodexStatusBar.app` from the project root.
-- Render `idle`, `thinking`, `tool`, `compacting`, `permission`, and `done` states in the macOS menu bar.
+- Render `idle`, `thinking`, `tool`, `permission`, and `done` states in the macOS menu bar.
 - Write and read the single local state file at `~/.codex/statusbar/state.json`.
 - Install Codex hooks into `~/.codex/hooks.json` without removing unrelated hooks.
 - Provide local scripts for manual state testing and hook uninstall.
@@ -20,9 +22,9 @@ Out of scope:
 - Developer ID signing, notarization, or full release packaging.
 - Production distribution polish.
 
-## Phase 1 Scope
+## Historical Phase 1 Scope
 
-Phase 1 adds a deterministic local verification layer for Codex hook events:
+Phase 1 added a deterministic local verification layer for Codex hook events:
 
 - Document the single-state-file hook event model.
 - Replay `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`, `SubagentStart`, and `SubagentStop` from fixtures.
@@ -155,7 +157,7 @@ The installer:
 - Reads and updates `~/.codex/hooks.json`.
 - Creates a first-run backup at `~/.codex/hooks.json.bak-codex-status-bar` when a hooks file already exists.
 - Removes only prior hooks that reference this status bar's own marker scripts.
-- Adds hook commands for Codex lifecycle, tool, permission, and stop events.
+- Adds hook commands for Codex lifecycle, tool, compaction, permission, and stop events.
 
 ## Uninstall Hooks
 

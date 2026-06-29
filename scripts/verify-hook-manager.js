@@ -92,6 +92,8 @@ run("desiredHookSettings installs all Codex Status Bar events", () => {
   const commands = commandPaths(settings);
   assert.ok(commands.some((command) => command.includes("codex-lifecycle-writer.js") && command.includes("SessionStart")));
   assert.ok(commands.some((command) => command.includes("codex-status-writer.js") && command.includes("PreToolUse")));
+  assert.ok(commands.some((command) => command.includes("codex-status-writer.js") && command.includes("PreCompact")));
+  assert.ok(commands.some((command) => command.includes("codex-status-writer.js") && command.includes("PostCompact")));
 });
 
 run("repairHooks updates stale own hooks and preserves unrelated hooks", () => {

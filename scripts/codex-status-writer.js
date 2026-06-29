@@ -90,18 +90,6 @@ function labelForTool(toolName) {
   return labels[toolName] || "Using tool";
 }
 
-function isCompactionTool(toolName, payload) {
-  const values = [
-    toolName,
-    payload.tool,
-    payload.name,
-    payload.status,
-    payload.reason,
-    payload.kind,
-  ].map((value) => String(value || "").toLowerCase());
-  return values.some((value) => value.includes("compact") || value.includes("compaction"));
-}
-
 function sessionIdFor(payload) {
   return safeId(payload.session_id || payload.sessionId);
 }
@@ -178,13 +166,20 @@ function writeStateForEvent(payload) {
     case "PreToolUse": {
       if (!isActiveTurn(payload, prev)) return false;
       if (!startedAt) startedAt = now;
-      const state = isCompactionTool(toolName, payload) ? "compacting" : "tool";
-      const label = state === "compacting" ? "Compacting" : labelForTool(toolName);
       writeJsonAtomic(statePathFor(sessionId), {
-        ...stateFor(payload, prev, now, startedAt, state, label, toolName),
+        ...stateFor(payload, prev, now, startedAt, "tool", labelForTool(toolName), toolName),
         visibleUntilMs: nowMs + maxToolVisibleMs,
         minVisibleUntilMs: nowMs + minToolVisibleMs,
       });
+      return true;
+    }
+    case "PreCompact": {
+      if (!isActiveTurn(payload, prev)) return false;
+      if (!startedAt) startedAt = now;
+      writeJsonAtomic(
+        statePathFor(sessionId),
+        stateFor(payload, prev, now, startedAt, "compacting", "Compacting", toolName)
+      );
       return true;
     }
     case "PostToolUse": {
@@ -200,6 +195,16 @@ function writeStateForEvent(payload) {
       writeJsonAtomic(
         statePathFor(sessionId),
         stateFor(payload, prev, afterWaitNow, startedAt, "thinking", "Codex thinking", toolName)
+      );
+      return true;
+    }
+    case "PostCompact": {
+      if (!isActiveTurn(payload, prev)) return false;
+      const afterCompactNow = Date.now() / 1000;
+      if (!startedAt) startedAt = afterCompactNow;
+      writeJsonAtomic(
+        statePathFor(sessionId),
+        stateFor(payload, prev, afterCompactNow, startedAt, "thinking", "Codex thinking", toolName)
       );
       return true;
     }
