@@ -167,8 +167,6 @@ final class StatusController: NSObject, NSMenuDelegate {
     let defaultStateDir = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.d")
     let defaultLegacyStatePath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.json")
     let pollInterval: TimeInterval = 0.4
-    let staleAfter: TimeInterval = 15 * 60
-    let orphanPruneAfter: TimeInterval = 2 * 60 * 60
     let autoExitDelay: TimeInterval = 20
 
     var stateDir: String {
@@ -207,6 +205,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         var entrypointSource: String
         var termProgram: String
         var focusTarget: FocusTarget
+        var transcript: String
         var started: Bool
         var startedAt: Double
         var ts: Double
@@ -226,6 +225,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             self.entrypointSource = object["entrypointSource"] as? String ?? ""
             self.termProgram = object["termProgram"] as? String ?? object["term_program"] as? String ?? ""
             self.focusTarget = FocusTarget(object: object["focusTarget"] as? [String: Any])
+            self.transcript = object["transcript"] as? String ?? object["transcript_path"] as? String ?? ""
             self.started = object["started"] as? Bool ?? false
             self.startedAt = (object["startedAt"] as? NSNumber)?.doubleValue ?? 0
             self.ts = (object["ts"] as? NSNumber)?.doubleValue ?? 0
@@ -247,6 +247,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     var activeLabel = ""
     var activeStartedAt: Double = 0
     var activeState: State = .idle
+    var activeIconWarning = false
     var frameIndex = 0
     var lastLoggedSignature = ""
 
@@ -265,6 +266,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     let codexGreen = NSColor(srgbRed: 0.08, green: 0.72, blue: 0.48, alpha: 1)
     let blue = NSColor(srgbRed: 0.20, green: 0.48, blue: 0.92, alpha: 1)
     let amber = NSColor(srgbRed: 0.95, green: 0.70, blue: 0.16, alpha: 1)
+    var longRunningToolIconTint: NSColor { amber }
 
     override init() {
         super.init()
@@ -463,7 +465,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     @objc func toggleIconColor() {
         iconSystem.toggle()
         UserDefaults.standard.set(iconSystem, forKey: "iconSystem")
-        render(state: activeState, label: activeLabel, startedAt: activeStartedAt)
+        render(state: activeState, label: activeLabel, startedAt: activeStartedAt, iconWarning: activeIconWarning)
     }
 
     @objc func chooseHideIdle(_ sender: NSMenuItem) {
@@ -482,7 +484,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     func setIconStyle(_ style: IconStyle) {
         iconStyle = style
         UserDefaults.standard.set(style.rawValue, forKey: "iconStyle")
-        render(state: activeState, label: activeLabel, startedAt: activeStartedAt)
+        render(state: activeState, label: activeLabel, startedAt: activeStartedAt, iconWarning: activeIconWarning)
     }
 
     @objc func selectPet(_ sender: NSMenuItem) {
@@ -491,7 +493,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         iconStyle = .pet
         UserDefaults.standard.set(petId, forKey: "selectedPetId")
         UserDefaults.standard.set(IconStyle.pet.rawValue, forKey: "iconStyle")
-        render(state: activeState, label: activeLabel, startedAt: activeStartedAt)
+        render(state: activeState, label: activeLabel, startedAt: activeStartedAt, iconWarning: activeIconWarning)
     }
 
     @objc func revealStateFile() {
@@ -600,6 +602,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         let state = lead.effectiveState
         let label = statusLabel(for: lead)
         let startedAt = state == .thinking || state == .tool || state == .compacting ? lead.startedAt : 0
+        let iconWarning = isLongRunningTool(lead)
 
         switch state {
         case .thinking:
@@ -607,7 +610,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             render(state: .thinking, label: label.isEmpty ? "Thinking..." : label, startedAt: startedAt)
         case .tool:
             logRender(state: .tool, label: label, startedAt: startedAt)
-            render(state: .tool, label: label.isEmpty ? "Working..." : label, startedAt: startedAt)
+            render(state: .tool, label: label.isEmpty ? "Working..." : label, startedAt: startedAt, iconWarning: iconWarning)
         case .compacting:
             logRender(state: .compacting, label: label, startedAt: startedAt)
             render(state: .compacting, label: label.isEmpty ? "Compacting" : label, startedAt: startedAt)
@@ -628,9 +631,10 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func refreshEffectiveSessionStates() {
         let now = Date().timeIntervalSince1970
+        let codexRunning = codexDesktopProcessExists()
         for id in Array(sessions.keys) {
             guard var session = sessions[id] else { continue }
-            session.effectiveState = effectiveState(for: session, now: now)
+            session.effectiveState = effectiveState(for: session, now: now, codexRunning: codexRunning)
             sessions[id] = session
         }
     }
@@ -638,6 +642,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     func cleanupSessionFilesOnStartup() {
         try? FileManager.default.createDirectory(atPath: stateDir, withIntermediateDirectories: true)
         let now = Date().timeIntervalSince1970
+        let codexRunning = codexDesktopProcessExists()
         let fm = FileManager.default
         for file in stateFileNames() {
             let fullPath = (stateDir as NSString).appendingPathComponent(file)
@@ -647,25 +652,36 @@ final class StatusController: NSObject, NSMenuDelegate {
                 continue
             }
             let session = Session(json: object, id: (file as NSString).deletingPathExtension)
-            if session.pid > 0, !pidAlive(session.pid) {
+            if shouldRemoveSession(session, now: now, codexRunning: codexRunning) {
                 removeDeadSession(session.id)
                 continue
-            }
-            if session.pid == 0, session.ts > 0, now - session.ts > orphanPruneAfter {
-                removeDeadSession(session.id)
             }
         }
     }
 
     func cleanupDeadSessions() {
+        let now = Date().timeIntervalSince1970
+        let codexRunning = codexDesktopProcessExists()
         for session in sessions.values {
-            if session.pid > 0, !pidAlive(session.pid) {
-                removeDeadSession(session.id)
-            } else if session.pid == 0, session.effectiveState == .idle, session.ts > 0,
-                      Date().timeIntervalSince1970 - session.ts > orphanPruneAfter {
+            if shouldRemoveSession(session, now: now, codexRunning: codexRunning) {
                 removeDeadSession(session.id)
             }
         }
+    }
+
+    func shouldRemoveSession(_ session: Session, now: Double, codexRunning: Bool) -> Bool {
+        let isDesktop = isDesktopSession(session)
+        let livePid = session.pid > 0 && pidAlive(session.pid)
+        return SessionStateRules.shouldRemoveSession(
+            state: session.state.rawValue,
+            effectiveState: session.effectiveState.rawValue,
+            pid: session.pid,
+            pidAlive: livePid,
+            isDesktop: isDesktop,
+            codexRunning: codexRunning,
+            ts: session.ts,
+            now: now
+        )
     }
 
     func removeCorruptSessionFile(_ file: String) {
@@ -727,6 +743,10 @@ final class StatusController: NSObject, NSMenuDelegate {
         return elapsed(max(0, Int(Date().timeIntervalSince1970 - session.startedAt)))
     }
 
+    func isLongRunningTool(_ session: Session, now: Double = Date().timeIntervalSince1970) -> Bool {
+        SessionStateRules.isLongRunningTool(state: session.effectiveState.rawValue, ts: session.ts, now: now)
+    }
+
     func surfaceTag(for session: Session) -> String {
         let target = focusTarget(for: session)
         if target.kind == "bundle" {
@@ -742,6 +762,8 @@ final class StatusController: NSObject, NSMenuDelegate {
         switch session.effectiveState {
         case .permission:
             return symbolImage("exclamationmark.circle.fill", tint: amber)
+        case .tool where isLongRunningTool(session):
+            return symbolImage("progress.indicator", tint: longRunningToolIconTint) ?? symbolImage("rays", tint: longRunningToolIconTint)
         case .thinking, .tool, .compacting:
             return symbolImage("progress.indicator") ?? symbolImage("rays")
         case .idle, .done, .waiting:
@@ -753,6 +775,8 @@ final class StatusController: NSObject, NSMenuDelegate {
         switch session.effectiveState {
         case .permission:
             return amber
+        case .tool where isLongRunningTool(session):
+            return longRunningToolIconTint
         case .thinking, .tool, .compacting:
             return .labelColor
         case .idle, .done, .waiting:
@@ -828,6 +852,17 @@ final class StatusController: NSObject, NSMenuDelegate {
             return Session.FocusTarget(object: ["kind": "bundle", "bundleId": "com.openai.codex"])
         }
         return Session.FocusTarget(object: ["kind": "none"])
+    }
+
+    func isDesktopSession(_ session: Session) -> Bool {
+        if session.focusTarget.kind == "bundle" {
+            return true
+        }
+        let surface = session.entrypoint.lowercased()
+        if surface == "codex-desktop" || surface == "desktop" || surface == "app" {
+            return true
+        }
+        return isCodexDesktopProcess(pid: session.pid)
     }
 
     func openCodex(bundleId: String = "com.openai.codex") {
@@ -960,7 +995,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             if [.permission, .tool, .thinking, .compacting, .waiting].contains(session.effectiveState) {
                 return true
             }
-            return session.pid > 0 && pidAlive(session.pid)
+            return !isDesktopSession(session) && session.pid > 0 && pidAlive(session.pid)
         }
     }
 
@@ -993,21 +1028,49 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
     }
 
-    func effectiveState(for session: Session, now: Double) -> State {
-        var state = session.state
-        let hasLivePid = session.pid > 0 && pidAlive(session.pid)
-        if [.thinking, .tool, .compacting, .permission, .waiting].contains(state), !hasLivePid, session.ts > 0 {
-            let age = now - session.ts
-            if age > staleAfter {
-                return .idle
+    func effectiveState(for session: Session, now: Double, codexRunning: Bool) -> State {
+        let isDesktop = isDesktopSession(session)
+        let hasLivePid = !isDesktop && session.pid > 0 && pidAlive(session.pid)
+        let state = SessionStateRules.effectiveState(SessionStateRuleInput(
+            state: session.state.rawValue,
+            startedAt: session.startedAt,
+            ts: session.ts,
+            isDesktop: isDesktop,
+            codexRunning: codexRunning,
+            hasLivePid: hasLivePid,
+            interruptedByUser: transcriptShowsUserInterrupt(session.transcript),
+            now: now
+        ))
+        return State(rawValue: state) ?? session.state
+    }
+
+    func transcriptShowsUserInterrupt(_ path: String) -> Bool {
+        guard !path.isEmpty, let line = lastTurnLine(ofFileAt: path) else { return false }
+        return TranscriptStateRules.lineShowsUserInterrupt(line)
+    }
+
+    func lastTurnLine(ofFileAt path: String) -> String? {
+        guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
+        defer { try? handle.close() }
+        let size = (try? handle.seekToEnd()) ?? 0
+        let chunk: UInt64 = 8192
+        try? handle.seek(toOffset: size > chunk ? size - chunk : 0)
+        guard let data = try? handle.readToEnd(),
+              let text = String(data: data, encoding: .utf8) else { return nil }
+        return text
+            .split(separator: "\n")
+            .reversed()
+            .map(String.init)
+            .first { line in
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return false }
+                return !trimmed.contains("\"type\":\"system\"") &&
+                    !trimmed.contains("\"type\":\"away_summary\"") &&
+                    !trimmed.contains("\"type\":\"last-prompt\"") &&
+                    !trimmed.contains("\"type\":\"ai-title\"") &&
+                    !trimmed.contains("\"type\":\"mode\"") &&
+                    !trimmed.contains("\"type\":\"permission-mode\"")
             }
-        }
-
-        if state == .tool, session.visibleUntilMs > 0, now * 1000 > session.visibleUntilMs {
-            state = .thinking
-        }
-
-        return state
     }
 
     func priority(of state: State) -> Int {
@@ -1058,11 +1121,12 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
     }
 
-    func render(state: State, label: String, startedAt: Double) {
+    func render(state: State, label: String, startedAt: Double, iconWarning: Bool = false) {
         playSoundIfNeeded(for: state)
         activeState = state
         activeLabel = label
         activeStartedAt = startedAt
+        activeIconWarning = iconWarning
 
         statusItem.isVisible = true
         frameIndex = 0
@@ -1128,6 +1192,8 @@ final class StatusController: NSObject, NSMenuDelegate {
         switch state {
         case .permission:
             color = amber
+        case .tool where activeIconWarning:
+            color = longRunningToolIconTint
         case .tool, .compacting:
             color = iconSystem ? nil : blue
         default:

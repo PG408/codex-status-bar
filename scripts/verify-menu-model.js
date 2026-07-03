@@ -1,11 +1,17 @@
 #!/usr/bin/env node
 const fs = require("fs");
+const path = require("path");
 
-const swift = fs.readFileSync("Sources/main.swift", "utf8");
+const swift = fs
+  .readdirSync("Sources")
+  .filter((file) => file.endsWith(".swift"))
+  .map((file) => fs.readFileSync(path.join("Sources", file), "utf8"))
+  .join("\n");
 const readme = fs.readFileSync("README.md", "utf8");
 const docs = fs.existsSync("docs/sessions-menu.md")
   ? fs.readFileSync("docs/sessions-menu.md", "utf8")
   : "";
+const writer = fs.readFileSync("scripts/codex-status-writer.js", "utf8");
 
 const checks = [
   ["Swift defines SessionRowView", swift.includes("final class SessionRowView")],
@@ -29,8 +35,16 @@ const checks = [
   ["Swift uses pid liveness cleanup", swift.includes("pidAlive") && swift.includes("removeDeadSession")],
   ["Swift supports idle auto exit", swift.includes("autoExitDelay") && swift.includes("evaluateAutoExit")],
   ["Swift does not age live thinking into idle by quiet timeout", !swift.includes("quietThinkingAfter") && !swift.includes("quietAge")],
-  ["Swift stale active states require missing live pid", swift.includes("let hasLivePid = session.pid > 0 && pidAlive(session.pid)") && swift.includes("!hasLivePid")],
-  ["Swift treats compacting as active priority", swift.includes("case .thinking, .tool, .compacting")],
+  ["Swift keeps tool active until PostToolUse instead of visible timeout downgrade", !swift.includes("state == .tool, session.visibleUntilMs > 0")],
+  ["Swift does not introduce a long-running tool state", !swift.includes("case toolLongRunning") && !swift.includes("\"toolLongRunning\"")],
+  ["Swift derives long-running tool icon warning without changing label", swift.includes("isLongRunningTool") && swift.includes("longRunningToolIconTint")],
+  ["Swift has surface-aware desktop liveness", swift.includes("isDesktopSession(") && swift.includes("codexDesktopProcessExists()")],
+  ["Swift does not use desktop pid as session liveness", swift.includes("!isDesktopSession(session) && session.pid > 0")],
+  ["Swift uses Codex process fallback consistently for desktop liveness", swift.includes("func isDesktopSession") && swift.includes("return isCodexDesktopProcess(pid: session.pid)")],
+  ["Swift treats compacting and tools as active priority", swift.includes("case .thinking, .tool, .compacting")],
+  ["Writer preserves existing tool timer semantics", writer.includes("if (!startedAt) startedAt = now") && writer.includes("if (!startedAt) startedAt = afterWaitNow")],
+  ["Writer preserves transcript path for interrupt recovery", writer.includes("transcript_path") && writer.includes("prev.transcript")],
+  ["Swift uses transcript turn_aborted marker for active-state recovery", swift.includes("transcriptShowsUserInterrupt") && swift.includes("turn_aborted")],
   ["Swift avoids high-frequency status item animation", !swift.includes("Timer(timeInterval: 0.12")],
   ["Swift uses standard status item menu binding", swift.includes("statusItem.menu = statusMenu") && !swift.includes("@objc func statusItemClicked")],
   ["Swift keeps image-only status item visible", swift.includes("statusItem.length = NSStatusItem.squareLength") && swift.includes("statusItem.isVisible = true")],

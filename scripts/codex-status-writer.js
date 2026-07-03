@@ -133,6 +133,7 @@ function stateFor(payload, prev, now, startedAt, state, label, toolName) {
     entrypointSource: surface.entrypointSource,
     termProgram: surface.termProgram,
     focusTarget: surface.focusTarget,
+    transcript: typeof payload.transcript_path === "string" ? payload.transcript_path : prev.transcript || "",
     started: true,
     startedAt,
     ts: now,

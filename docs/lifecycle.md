@@ -49,11 +49,14 @@ This means a new CLI or Desktop hook can bring the status bar back after crash, 
 
 Swift treats `state.d/<session_id>.json` as display state, not as permanent storage.
 
-- A session with a live `pid` is retained.
-- A session with a dead `pid` is removed.
+- A CLI session can use its hook parent `pid` as supporting liveness evidence.
+- A Desktop session is not considered live merely because `Codex.app` is still running.
+- A Desktop `SessionEnd` removes that session file; Codex Desktop process exit removes remaining Desktop session files as cleanup.
 - A corrupt or unparsable session file is removed.
 - Old `pid == 0` files are retained only temporarily and pruned after the orphan timeout.
-- Live active sessions are not aged out by a short quiet timeout; `thinking` and `compacting` remain visible until an explicit next-state event, stop/end event, or process liveness says otherwise.
+- `PreToolUse` keeps a session in `tool` until `PostToolUse` writes the next explicit state. After three minutes from `PreToolUse`, Swift changes only the icon tint as a warning and leaves the persisted state, label, and timer semantics unchanged.
+- If Codex records a transcript `turn_aborted` event with `reason: "interrupted"`, Swift treats active `thinking`, `tool`, `compacting`, `permission`, or `waiting` as `idle`. This covers manual termination paths that do not reliably deliver a `Stop` hook.
+- Live active sessions are not aged out by a short quiet timeout; `thinking` and `compacting` remain visible until an explicit next-state event, stop/end event, or surface liveness says otherwise.
 
 This keeps current sessions visible while preventing stale files from accumulating indefinitely.
 

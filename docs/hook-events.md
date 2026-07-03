@@ -25,10 +25,11 @@ Each session file contains display metadata only:
 | `entrypointSource` | Evidence used to resolve the surface: `payload`, `env`, `termProgram`, `process`, `previous`, or `unknown`. |
 | `termProgram` | Terminal/editor environment value for CLI sessions, such as `Apple_Terminal`, `iTerm.app`, `WarpTerminal`, `vscode`, or `ghostty`. |
 | `focusTarget` | Click-focus target. Desktop sessions use `{ "kind": "bundle", "bundleId": "com.openai.codex" }`; CLI sessions use `{ "kind": "app", "appName": "..." }`; unknown sessions use `{ "kind": "none" }`. |
+| `transcript` | Optional transcript path from `transcript_path`; used only to detect user interruption recovery markers. |
 | `started` | `false` for lifecycle-created idle sessions; `true` after visible activity. |
 | `startedAt` | Unix timestamp seconds for timer display; `0` when no timer should be shown. |
 | `ts` | Unix timestamp seconds, with millisecond precision, when the session state was written. |
-| `visibleUntilMs` | Optional upper bound for a short tool label. |
+| `visibleUntilMs` | Writer compatibility field for short tool visibility. Swift no longer uses it to downgrade a running tool to `thinking`. |
 | `minVisibleUntilMs` | Optional lower bound for tool or permission visibility. |
 
 The writer does not store prompts, command output, transcript contents, or secrets.
@@ -92,7 +93,9 @@ The Swift app aggregates all files in `state.d/` and renders one lead session in
 
 Within the same priority tier, the most recent `ts` wins.
 
-A live `thinking` or `compacting` session remains active until a matching `PostCompact`, `Stop`, or `SubagentStop` writes the next explicit state, `SessionEnd` removes the file, or Swift determines that the owning process is no longer alive. The UI does not downgrade a live active session merely because no new hook event arrived for a short period.
+A live `thinking` or `compacting` session remains active until a matching `PostCompact`, `Stop`, or `SubagentStop` writes the next explicit state, `SessionEnd` removes the file, Swift detects a transcript `turn_aborted` event with `reason: "interrupted"`, or Swift determines that the owning surface is no longer alive. A live `tool` session remains `tool` until `PostToolUse`; after three minutes from `PreToolUse`, Swift changes only the icon tint as a warning and leaves the persisted state, label, and timer semantics unchanged.
+
+For liveness, CLI sessions may use the hook parent pid as supporting evidence. Desktop sessions do not use the Codex app pid to prove an individual session is still active, because the Desktop app process can outlive any one conversation. `SessionEnd` is the normal deletion path; Codex Desktop process exit is only a cleanup signal for Desktop session files.
 
 ## Replay Verification
 
@@ -131,3 +134,4 @@ node scripts/verify-hook-manager.js
 | `stale-background-cannot-win.json` | Old same-session tool events and background sessions cannot displace a permission lead. |
 | `subagent-session.json` | `SubagentStart` and `SubagentStop` update the corresponding session file. |
 | `compacting-session.json` | `PreCompact` shows context compaction as `compacting`, then `PostCompact` returns to `thinking`. |
+| `transcript-path-session.json` | Writer preserves `transcript_path` across subsequent events for interruption recovery. |

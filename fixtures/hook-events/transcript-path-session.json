@@ -1,0 +1,44 @@
+{
+  "name": "transcript-path-session",
+  "description": "Writer preserves transcript_path so Swift can recover from interrupted turns.",
+  "steps": [
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "transcript",
+        "turn_id": "turn",
+        "cwd": "/tmp/transcript-project",
+        "transcript_path": "/tmp/transcript-project/session.jsonl"
+      },
+      "expect": {
+        "sessions": {
+          "transcript": {
+            "state": "thinking",
+            "turnId": "turn",
+            "transcript": "/tmp/transcript-project/session.jsonl"
+          }
+        },
+        "lead": "transcript"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "transcript",
+        "turn_id": "turn",
+        "cwd": "/tmp/transcript-project",
+        "tool_name": "Bash"
+      },
+      "expect": {
+        "sessions": {
+          "transcript": {
+            "state": "tool",
+            "tool": "Bash",
+            "transcript": "/tmp/transcript-project/session.jsonl"
+          }
+        },
+        "lead": "transcript"
+      }
+    }
+  ]
+}
