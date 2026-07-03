@@ -24,7 +24,7 @@ Each session file contains display metadata only:
 | `entrypoint` | Normalized surface tag such as `cli`, `codex-desktop`, `manual`, `dev`, or `unknown`. |
 | `entrypointSource` | Evidence used to resolve the surface: `payload`, `env`, `termProgram`, `process`, `previous`, or `unknown`. |
 | `termProgram` | Terminal/editor environment value for CLI sessions, such as `Apple_Terminal`, `iTerm.app`, `WarpTerminal`, `vscode`, or `ghostty`. |
-| `focusTarget` | Click-focus target. Desktop sessions use `{ "kind": "bundle", "bundleId": "com.openai.codex" }`; CLI sessions use `{ "kind": "app", "appName": "..." }`; unknown sessions use `{ "kind": "none" }`. |
+| `focusTarget` | Click-focus target. Desktop sessions use `{ "kind": "url", "url": "codex://threads/<sessionId>", "fallback": { "kind": "bundle", "bundleId": "com.openai.codex" } }`; CLI sessions use `{ "kind": "app", "appName": "..." }`; unknown sessions use `{ "kind": "none" }`. |
 | `transcript` | Optional transcript path from `transcript_path`; used only to detect user interruption recovery markers. |
 | `started` | `false` for lifecycle-created idle sessions; `true` after visible activity. |
 | `startedAt` | Unix timestamp seconds for timer display; `0` when no timer should be shown. |

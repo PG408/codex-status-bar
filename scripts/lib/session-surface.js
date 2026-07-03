@@ -6,6 +6,29 @@ function nonEmptyString(value) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
 }
 
+function isDesktopEntrypoint(entrypoint) {
+  return entrypoint === "codex-desktop" || entrypoint === "desktop" || entrypoint === "app";
+}
+
+function codexThreadUrl(sessionId) {
+  const id = nonEmptyString(sessionId);
+  return id ? `codex://threads/${encodeURIComponent(id)}` : "";
+}
+
+function codexBundleTarget() {
+  return { kind: "bundle", bundleId: CODEX_BUNDLE_ID };
+}
+
+function codexThreadTarget(sessionId) {
+  const url = codexThreadUrl(sessionId);
+  if (!url) return codexBundleTarget();
+  return {
+    kind: "url",
+    url,
+    fallback: codexBundleTarget(),
+  };
+}
+
 function terminalAppName(termProgram) {
   switch (termProgram) {
     case "Apple_Terminal":
@@ -48,8 +71,8 @@ function focusTargetForState(state) {
 
   const entrypoint = nonEmptyString(state && state.entrypoint).toLowerCase();
   const termProgram = nonEmptyString(state && (state.termProgram || state.term_program));
-  if (entrypoint === "codex-desktop" || entrypoint === "desktop" || entrypoint === "app") {
-    return { kind: "bundle", bundleId: CODEX_BUNDLE_ID };
+  if (isDesktopEntrypoint(entrypoint)) {
+    return codexThreadTarget(state && state.sessionId);
   }
   if (entrypoint === "cli" && termProgram) {
     return { kind: "app", appName: terminalAppName(termProgram) };
@@ -73,6 +96,7 @@ function resolved(entrypoint, entrypointSource, termProgram, focusTarget) {
 }
 
 function resolveSessionSurface(payload = {}, prev = {}, env = process.env, options = {}) {
+  const sessionId = nonEmptyString(options.sessionId) || nonEmptyString(payload.session_id) || nonEmptyString(payload.sessionId) || nonEmptyString(prev.sessionId);
   const payloadEntrypoint = nonEmptyString(payload.entrypoint) || nonEmptyString(payload.entry_point);
   const payloadTermProgram = nonEmptyString(payload.term_program) || nonEmptyString(payload.termProgram);
   const envEntrypoint = nonEmptyString(env.CODEX_STATUSBAR_ENTRYPOINT) || nonEmptyString(env.CODEX_ENTRYPOINT);
@@ -81,13 +105,13 @@ function resolveSessionSurface(payload = {}, prev = {}, env = process.env, optio
   const termProgram = payloadTermProgram || envTermProgram || previousTermProgram;
 
   if (payloadEntrypoint) {
-    return resolved(payloadEntrypoint, "payload", termProgram);
+    return resolved(payloadEntrypoint, "payload", termProgram, focusTargetForState({ entrypoint: payloadEntrypoint, termProgram, sessionId }));
   }
   if (envEntrypoint) {
-    return resolved(envEntrypoint, "env", termProgram);
+    return resolved(envEntrypoint, "env", termProgram, focusTargetForState({ entrypoint: envEntrypoint, termProgram, sessionId }));
   }
   if (envTermProgram) {
-    return resolved("cli", "termProgram", envTermProgram);
+    return resolved("cli", "termProgram", envTermProgram, focusTargetForState({ entrypoint: "cli", termProgram: envTermProgram, sessionId }));
   }
 
   const pid = Number(options.pid || prev.pid || process.ppid || 0);
@@ -95,7 +119,7 @@ function resolveSessionSurface(payload = {}, prev = {}, env = process.env, optio
     ? options.processCommand
     : processCommandForPid(pid);
   if (isCodexDesktopCommand(processCommand)) {
-    return resolved("codex-desktop", "process", termProgram);
+    return resolved("codex-desktop", "process", termProgram, focusTargetForState({ entrypoint: "codex-desktop", termProgram, sessionId }));
   }
 
   const previousEntrypoint = nonEmptyString(prev.entrypoint);

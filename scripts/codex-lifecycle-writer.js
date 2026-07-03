@@ -61,7 +61,7 @@ function run() {
   if (event === "SessionStart") {
     const now = Date.now() / 1000;
     const pid = Number(process.ppid || 0);
-    const surface = resolveSessionSurface(payload, {}, process.env, { pid });
+    const surface = resolveSessionSurface(payload, {}, process.env, { pid, sessionId });
     writeJsonAtomic(statePath, {
       state: "idle",
       label: "",

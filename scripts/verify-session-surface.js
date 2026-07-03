@@ -16,14 +16,18 @@ function run(name, fn) {
 
 run("payload entrypoint has highest priority", () => {
   const surface = resolveSessionSurface(
-    { entrypoint: "codex-desktop", term_program: "Apple_Terminal" },
+    { session_id: "desktop-session", entrypoint: "codex-desktop", term_program: "Apple_Terminal" },
     {},
     { TERM_PROGRAM: "ghostty" },
     { pid: 42, processCommand: "/usr/bin/codex" }
   );
   assert.equal(surface.entrypoint, "codex-desktop");
   assert.equal(surface.entrypointSource, "payload");
-  assert.deepEqual(surface.focusTarget, { kind: "bundle", bundleId: "com.openai.codex" });
+  assert.deepEqual(surface.focusTarget, {
+    kind: "url",
+    url: "codex://threads/desktop-session",
+    fallback: { kind: "bundle", bundleId: "com.openai.codex" },
+  });
 });
 
 run("term program infers cli surface", () => {
@@ -36,7 +40,7 @@ run("term program infers cli surface", () => {
 
 run("codex desktop process infers desktop surface", () => {
   const surface = resolveSessionSurface(
-    {},
+    { session_id: "process-session" },
     {},
     {},
     {
@@ -46,7 +50,23 @@ run("codex desktop process infers desktop surface", () => {
   );
   assert.equal(surface.entrypoint, "codex-desktop");
   assert.equal(surface.entrypointSource, "process");
-  assert.deepEqual(surface.focusTarget, { kind: "bundle", bundleId: "com.openai.codex" });
+  assert.deepEqual(surface.focusTarget, {
+    kind: "url",
+    url: "codex://threads/process-session",
+    fallback: { kind: "bundle", bundleId: "com.openai.codex" },
+  });
+});
+
+run("cli surface does not generate desktop thread deeplink", () => {
+  const surface = resolveSessionSurface(
+    { session_id: "cli-session", entrypoint: "cli", term_program: "Apple_Terminal" },
+    {},
+    {},
+    { pid: 42, processCommand: "/usr/bin/codex" }
+  );
+  assert.equal(surface.entrypoint, "cli");
+  assert.deepEqual(surface.focusTarget, { kind: "app", appName: "Terminal" });
+  assert.equal(JSON.stringify(surface.focusTarget).includes("codex://threads/cli-session"), false);
 });
 
 run("previous known surface is preserved before unknown fallback", () => {
@@ -72,8 +92,12 @@ run("unknown surface is explicit and has no focus target", () => {
 
 run("swift-compatible fallback target is derived from state", () => {
   assert.deepEqual(
-    focusTargetForState({ entrypoint: "codex-desktop", termProgram: "" }),
-    { kind: "bundle", bundleId: "com.openai.codex" }
+    focusTargetForState({ entrypoint: "codex-desktop", sessionId: "fallback-session", termProgram: "" }),
+    {
+      kind: "url",
+      url: "codex://threads/fallback-session",
+      fallback: { kind: "bundle", bundleId: "com.openai.codex" },
+    }
   );
   assert.deepEqual(
     focusTargetForState({ entrypoint: "cli", termProgram: "Apple_Terminal" }),

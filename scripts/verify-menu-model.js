@@ -23,6 +23,8 @@ const checks = [
   ["Swift refreshes open menu rows", swift.includes("refreshOpenMenuRows")],
   ["Swift supports Hide idle sessions", swift.includes("Hide idle sessions") && swift.includes("hideIdleAfter")],
   ["Swift supports session click focus", swift.includes("openSession(") && swift.includes("openCodex")],
+  ["Swift supports URL focus target fallback", swift.includes('case "url"') && swift.includes("openURLTarget") && swift.includes("openFallbackTarget")],
+  ["Swift derives Codex thread deeplink target", swift.includes("codex://threads/") && swift.includes("desktopThreadTarget")],
   ["Swift parses focus target", swift.includes("struct FocusTarget") && swift.includes("focusTarget")],
   ["Swift supports process fallback focus", swift.includes("isCodexDesktopProcess")],
   ["Swift supports terminal program mapping", swift.includes("termProgram") && swift.includes("Apple_Terminal")],
@@ -57,6 +59,7 @@ const checks = [
   ["Docs mention Sessions menu", readme.includes("Sessions Menu") || docs.includes("Sessions Menu")],
   ["Docs mention hide idle behavior", readme.includes("Hide idle sessions") || docs.includes("Hide idle sessions")],
   ["Docs mention click focus boundary", readme.includes("click") || docs.includes("click")],
+  ["Docs mention Desktop thread deeplink", docs.includes("codex://threads/<sessionId>")],
 ];
 
 const failed = checks.filter(([, ok]) => !ok);

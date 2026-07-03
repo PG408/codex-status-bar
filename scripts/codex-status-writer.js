@@ -120,7 +120,7 @@ function stateFor(payload, prev, now, startedAt, state, label, toolName) {
   const sessionId = sessionIdFor(payload);
   const incomingTurnId = turnIdFor(payload);
   const pid = Number(prev.pid || process.ppid || 0);
-  const surface = resolveSessionSurface(payload, prev, process.env, { pid });
+  const surface = resolveSessionSurface(payload, prev, process.env, { pid, sessionId });
   return {
     state,
     label,

@@ -44,8 +44,12 @@
             "entrypoint": "codex-desktop",
             "entrypointSource": "payload",
             "focusTarget": {
-              "kind": "bundle",
-              "bundleId": "com.openai.codex"
+              "kind": "url",
+              "url": "codex://threads/desktop-main",
+              "fallback": {
+                "kind": "bundle",
+                "bundleId": "com.openai.codex"
+              }
             },
             "project": "desktop-project"
           }

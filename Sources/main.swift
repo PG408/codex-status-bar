@@ -185,11 +185,20 @@ final class StatusController: NSObject, NSMenuDelegate {
             var kind: String
             var bundleId: String
             var appName: String
+            var url: String
+            var fallbackKind: String
+            var fallbackBundleId: String
+            var fallbackAppName: String
 
             init(object: [String: Any]?) {
                 self.kind = object?["kind"] as? String ?? "none"
                 self.bundleId = object?["bundleId"] as? String ?? ""
                 self.appName = object?["appName"] as? String ?? ""
+                self.url = object?["url"] as? String ?? ""
+                let fallback = object?["fallback"] as? [String: Any]
+                self.fallbackKind = fallback?["kind"] as? String ?? ""
+                self.fallbackBundleId = fallback?["bundleId"] as? String ?? ""
+                self.fallbackAppName = fallback?["appName"] as? String ?? ""
             }
         }
 
@@ -749,7 +758,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func surfaceTag(for session: Session) -> String {
         let target = focusTarget(for: session)
-        if target.kind == "bundle" {
+        if target.kind == "bundle" || target.kind == "url" {
             return "APP"
         }
         if target.kind == "app" || session.entrypoint == "cli" || !session.termProgram.isEmpty {
@@ -828,6 +837,8 @@ final class StatusController: NSObject, NSMenuDelegate {
     func openSession(_ session: Session) {
         let target = focusTarget(for: session)
         switch target.kind {
+        case "url":
+            openURLTarget(target)
         case "bundle":
             openCodex(bundleId: target.bundleId)
         case "app":
@@ -843,19 +854,31 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
         let surface = session.entrypoint.lowercased()
         if surface == "codex-desktop" || surface == "desktop" || surface == "app" {
-            return Session.FocusTarget(object: ["kind": "bundle", "bundleId": "com.openai.codex"])
+            return desktopThreadTarget(for: session)
         }
         if surface == "cli", !session.termProgram.isEmpty {
             return Session.FocusTarget(object: ["kind": "app", "appName": terminalAppName(for: session.termProgram)])
         }
         if isCodexDesktopProcess(pid: session.pid) {
-            return Session.FocusTarget(object: ["kind": "bundle", "bundleId": "com.openai.codex"])
+            return desktopThreadTarget(for: session)
         }
         return Session.FocusTarget(object: ["kind": "none"])
     }
 
+    func desktopThreadTarget(for session: Session) -> Session.FocusTarget {
+        let threadId = session.sessionId.isEmpty ? session.id : session.sessionId
+        guard !threadId.isEmpty else {
+            return Session.FocusTarget(object: ["kind": "bundle", "bundleId": "com.openai.codex"])
+        }
+        return Session.FocusTarget(object: [
+            "kind": "url",
+            "url": "codex://threads/\(threadId)",
+            "fallback": ["kind": "bundle", "bundleId": "com.openai.codex"],
+        ])
+    }
+
     func isDesktopSession(_ session: Session) -> Bool {
-        if session.focusTarget.kind == "bundle" {
+        if session.focusTarget.kind == "bundle" || session.focusTarget.kind == "url" {
             return true
         }
         let surface = session.entrypoint.lowercased()
@@ -871,6 +894,24 @@ final class StatusController: NSObject, NSMenuDelegate {
             workspace.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
         } else {
             workspace.open(URL(fileURLWithPath: "/Applications/Codex.app"))
+        }
+    }
+
+    func openURLTarget(_ target: Session.FocusTarget) {
+        if let url = URL(string: target.url), NSWorkspace.shared.open(url) {
+            return
+        }
+        openFallbackTarget(target)
+    }
+
+    func openFallbackTarget(_ target: Session.FocusTarget) {
+        switch target.fallbackKind {
+        case "bundle":
+            openCodex(bundleId: target.fallbackBundleId)
+        case "app":
+            openApplication(named: target.fallbackAppName)
+        default:
+            openCodex()
         }
     }
 
