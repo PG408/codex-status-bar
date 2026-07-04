@@ -101,7 +101,7 @@ hooks are trusted. Codex may require you to review command hooks through
 Use this path if you prefer to inspect and build the app locally.
 
 ```bash
-git clone <your-fork-or-repo-url>
+git clone https://github.com/PG408/codex-status-bar.git
 cd codex-status-bar
 ./build.sh
 open -g build/CodexStatusBar.app
