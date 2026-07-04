@@ -1,6 +1,8 @@
 # Lifecycle And Self-Repair
 
-Phase 4 makes Codex Status Bar a hook-launched local tool instead of a manually managed menu bar app.
+Codex Status Bar is a hook-launched local tool instead of a manually managed
+menu bar app. Codex hooks can start it after visible activity, and the app can
+repair its own hook configuration on startup.
 
 ## Startup Hook Repair
 
@@ -73,3 +75,10 @@ The delay prevents short gaps between hook writes from causing premature exit. A
 ## Uninstall Boundary
 
 `scripts/uninstall-codex-statusbar.js` uses the same marker filtering as install/repair. It removes only Codex Status Bar hook commands and does not modify unrelated user hooks.
+
+## Hook Trust Boundary
+
+Codex owns command hook trust and review. Codex Status Bar can write the hook
+configuration and observe whether hook events arrive, but it cannot reliably
+read Codex's private trust state. If hooks are installed but status updates do
+not appear, review them from Codex with `/hooks`.

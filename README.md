@@ -1,187 +1,157 @@
-# Codex Status Bar
+<img width="672" alt="Codex Status Bar menu bar demo" src="assets/1.gif" />
+<br><br>
 
-Codex Status Bar is a small macOS menu bar app that displays the live status of Codex sessions. The current baseline keeps the UI intentionally narrow: multiple local session state files, one visible menu bar item, and deterministic hook replay tests that can be used as the baseline for later session-menu work.
+<a href="../../releases"><img src="assets/download.png" alt="Download CodexStatusBar.dmg for macOS" width="260"></a>
+<br>
 
-## Historical Phase 0 Scope
+## Codex Status Bar
 
-Phase 0 established the first local baseline.
+A tiny macOS menu bar app that shows **Codex's live status**: thinking, running
+tools, compacting context, waiting for permission, running subagents, or resting
+after work is done. It has no window, no dock icon, no usage dashboard, and no
+server component.
 
-In scope:
+> Built so you can tab away during a long Codex turn and still see, at a
+> glance, whether Codex is working, waiting on you, compacting, or done.
 
-- Build a local `CodexStatusBar.app` from the project root.
-- Render `idle`, `thinking`, `tool`, `permission`, and `done` states in the macOS menu bar.
-- Write and read the single local state file at `~/.codex/statusbar/state.json`.
-- Install Codex hooks into `~/.codex/hooks.json` without removing unrelated hooks.
-- Provide local scripts for manual state testing and hook uninstall.
+<img width="710" alt="Codex Status Bar menu demo" src="assets/2.gif" />
+<br>
 
-Out of scope:
+> [!IMPORTANT]
+> **Multi-session support.** Codex Status Bar tracks Codex Desktop and Codex CLI
+> sessions at the same time. The menu bar surfaces the highest-priority session:
+> permission requests win over active work, active work wins over idle or done
+> sessions, and the dropdown lists tracked sessions grouped by project. Desktop
+> sessions can open their Codex thread through `codex://threads/<sessionId>`;
+> CLI sessions keep their terminal/editor focus path.
 
-- Multi-session state aggregation.
-- Session dropdown rows.
-- Automatic update checks.
-- Developer ID signing, notarization, or full release packaging.
-- Production distribution polish.
+---
 
-## Historical Phase 1 Scope
+## What it shows
 
-Phase 1 added a deterministic local verification layer for Codex hook events:
+- **Thinking** - the Codex icon animates with an elapsed timer.
+- **Running a tool** - a short label such as `Running command`, `Editing`,
+  `Reading`, `Searching`, or `Using tool`.
+- **Compacting** - a dedicated compacting state while Codex compresses context.
+- **Awaiting permission** - a red permission indicator when Codex needs approval.
+- **Subagent running** - a separate state for subagent activity inside a turn.
+- **Idle / done** - a resting Codex icon when no active work is visible.
 
-- Document the single-state-file hook event model.
-- Replay `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`, `SubagentStart`, and `SubagentStop` from fixtures.
-- Verify that background tool events cannot overwrite the active turn.
-- Keep the runtime model as a single `state.json` file.
+Everything is controlled from the menu:
 
-## Phase 2 Scope
+- **Show timer:** toggle the elapsed `1m 1s` clock.
+- **Show status text:** choose between icon-only mode and icon + label mode.
+- **Play notification sounds:** toggle permission and completion sounds.
+- **Hide idle sessions:** choose how long resting sessions stay in the menu.
+- **Use system icon color:** use the adaptive macOS menu bar glyph color.
+- **Icon Style:** switch between the Codex icon and Codex Pets.
+- **Pet:** choose an installed local Codex pet for the menu bar icon.
+- **Diagnostics:** reveal local state files or reset local display state.
 
-Phase 2 upgrades the runtime model to Codex multi-session state:
+## Where it works
 
-- Write new status updates to `~/.codex/statusbar/state.d/<session_id>.json`.
-- Use a lifecycle writer for `SessionStart` and `SessionEnd`.
-- Aggregate multiple session files in Swift and render one lead session.
-- Select the lead by `permission` first, then `tool/thinking/compacting`, then most-recent idle/done state.
-- Keep old `state.json` as a read-only fallback when `state.d/` is empty.
-
-Still out of scope: session dropdown UI, click-to-focus, automatic updates, signing, notarization, and release packaging.
-
-## Phase 3 Scope
-
-Phase 3 adds the Sessions Menu:
-
-- `Sessions`, `Options`, `Icon`, and `Diagnostics` menu sections.
-- Custom session rows with project name, state icon, elapsed timer, and CLI/APP badge.
-- `Hide idle sessions` menu filtering that does not delete `state.d` files or affect lead-session aggregation.
-- Row click focus for Codex Desktop and CLI terminal/editor apps.
-- Standardized surface metadata: `entrypoint`, `entrypointSource`, `termProgram`, and `focusTarget`.
-
-The detailed behavior and focus boundaries are documented in `docs/sessions-menu.md`.
-
-## Phase 4 Scope
-
-Phase 4 adds lifecycle automation:
-
-- Startup self-check and hook repair for first launch, version/path changes, missing hooks, and stale hook paths.
-- Shared Node/path/hook generation through `scripts/lib/hook-manager.js`.
-- Hook-triggered launch of `CodexStatusBar.app` after `SessionStart` or visible session activity.
-- PID-based liveness cleanup, corrupt state cleanup, old-format fallback pruning, and delayed auto-exit when no live Codex work remains.
-
-The lifecycle behavior, Node discovery, launch boundaries, and uninstall boundary are documented in `docs/lifecycle.md`.
+| Surface | Tracked? | Notes |
+|---|---:|---|
+| Codex Desktop sessions | Yes | Desktop rows prefer `codex://threads/<sessionId>` for click focus. |
+| Codex CLI sessions | Yes | CLI rows focus the terminal/editor app when a target is known. |
+| Multiple simultaneous sessions | Yes | The menu bar selects one lead session; the menu lists all tracked sessions. |
+| Permission requests | Yes | Permission state has the highest display priority. |
+| Subagent activity | Yes | Subagent running and subagent permission are shown separately. |
+| Archived Desktop chats | Best effort | Archived or missing threads may only bring Codex forward. |
+| Exact terminal tab focus | No | Terminal tab/window precision is not implemented. |
+| ChatGPT or unrelated OpenAI apps | No | Only Codex hook events are tracked. |
 
 ## Requirements
 
-- macOS 12 or later.
-- Xcode Command Line Tools with `swiftc`.
-- Node.js for hook scripts.
-- Codex with hook support.
+- macOS 12+
+- Codex with hook support
+- Node.js
+- Xcode Command Line Tools when building from source
 
-## Build
+## Install
 
-Build the app:
+### Option A - Build from source
+
+This is the current supported local workflow.
 
 ```bash
+git clone <your-fork-or-repo-url>
+cd codex-status-bar
 ./build.sh
-```
-
-The app bundle is written to:
-
-```text
-build/CodexStatusBar.app
-```
-
-Build a local DMG only when needed:
-
-```bash
-./build.sh --dmg
-```
-
-## Run
-
-Use the project-local run entrypoint:
-
-```bash
-./script/build_and_run.sh
-```
-
-The same script backs the Codex app `Run` action in `.codex/environments/environment.toml`.
-
-Verify that the app launches:
-
-```bash
-./script/build_and_run.sh --verify
-```
-
-## Manual State Testing
-
-The app polls `~/.codex/statusbar/state.d/` every 0.4 seconds. Use the development helper to switch the default `dev` session manually:
-
-```bash
-node scripts/dev-state.js idle
-node scripts/dev-state.js thinking
-node scripts/dev-state.js tool
-node scripts/dev-state.js compacting
-node scripts/dev-state.js permission
-node scripts/dev-state.js done
-```
-
-Additional helper modes:
-
-```bash
-node scripts/dev-state.js demo
-node scripts/test-statusbar.js
-```
-
-## Hook Replay Testing
-
-Run the deterministic hook replay suite:
-
-```bash
-node scripts/replay-hook-fixtures.js
-node scripts/verify-hook-manager.js
-node scripts/verify-session-surface.js
-node scripts/verify-menu-model.js
-```
-
-Fixtures live under `fixtures/hook-events/`. The replay script runs `scripts/codex-status-writer.js` and `scripts/codex-lifecycle-writer.js` in an isolated temporary status directory, verifies `state.d/`, rejects legacy `state.json` writes, and checks the expected lead session.
-
-The current event model and surface resolution rules are documented in `docs/hook-events.md`; lifecycle automation is documented in `docs/lifecycle.md`.
-
-## Install Hooks
-
-Install the Codex hooks:
-
-```bash
+open -g build/CodexStatusBar.app
 node scripts/install-codex-statusbar.js
 ```
 
-The installer:
+Start a new Codex session, or send a new prompt in an existing session after
+hooks are trusted. Codex may require you to review command hooks through
+`/hooks` before they run.
 
-- Reads and updates `~/.codex/hooks.json`.
-- Creates a first-run backup at `~/.codex/hooks.json.bak-codex-status-bar` when a hooks file already exists.
-- Removes only prior hooks that reference this status bar's own marker scripts.
-- Adds hook commands for Codex lifecycle, tool, compaction, permission, and stop events.
+### Option B - DMG
 
-## Uninstall Hooks
+Release packaging can use the same app bundle built by `./build.sh --dmg`, but
+this project does not currently provide a signed and notarized public DMG.
+Published release artifacts should be attached under [Releases](../../releases).
 
-Remove only this app's hooks:
+### Updating
+
+Rebuild or replace the app, then run the hook installer again:
 
 ```bash
-node scripts/uninstall-codex-statusbar.js
+./build.sh
+open -g build/CodexStatusBar.app
+node scripts/install-codex-statusbar.js
 ```
 
-The uninstall script edits `~/.codex/hooks.json` and removes commands containing this project's hook markers. It does not remove unrelated Codex hooks.
+Sessions that were already open may not reload changed hook commands until they
+send a new prompt or a new Codex session starts.
 
-## Local Files
+## How it works
 
-- App state: `~/.codex/statusbar/state.d/<session_id>.json`
-- Legacy fallback state: `~/.codex/statusbar/state.json`
-- App render log: `~/.codex/statusbar/app.log`
-- Hook discovery log, when enabled: `~/.codex/statusbar/hooks-discovery.jsonl`
-- Installed hooks: `~/.codex/hooks.json`
+Codex fires hook events as it works. The hook writers convert those events into
+small display records under:
 
-## Design Baseline
+```text
+~/.codex/statusbar/state.d/<session_id>.json
+```
 
-This project starts from the Codex status bar reference and preserves the local-file plus menu-bar architecture. Later phases can add session rows, click-to-focus behavior, and stronger lifecycle handling without changing the Phase 2 `state.d/` contract.
+The menu bar app polls those local records, derives the visible state for each
+session, then chooses the lead session for the menu bar. It also reads local
+Codex metadata for thread names and best-effort archived-chat handling. The app
+does not store prompts, command output, transcripts, API keys, or model
+responses.
 
-The project is unofficial and is not affiliated with, endorsed by, or sponsored by OpenAI.
+The installer merges Codex Status Bar hooks into `~/.codex/hooks.json`, preserves
+unrelated user hooks, and removes only prior hook commands that belong to this
+project.
+
+## User Guide
+
+See [User Guide](USER_GUIDE.md) for menu options, manual testing commands,
+common troubleshooting steps, and uninstall instructions.
+
+## Privacy
+
+Codex Status Bar is local-first and has no server component. See
+[Privacy](PRIVACY.md) for the full local data and network statement.
+
+## Acknowledgements
+
+This project is adapted from the ideas explored in the two reference projects
+under `reference/`: the Codex-focused prototype and Claude Status Bar's
+local-file plus menu-bar architecture.
+
+**[See acknowledgements ->](ACKNOWLEDGEMENTS.md)**
+
+## Trademark / Not Affiliated
+
+This is an unofficial, open-source side project. **It is not affiliated with,
+endorsed by, or sponsored by OpenAI.** "OpenAI", "ChatGPT", and "Codex" are
+trademarks of OpenAI, used here nominatively. This project is MIT licensed, but
+that covers the source code only and conveys no rights to OpenAI trademarks or
+brand assets.
+
+If this project violates or impedes any trademark or brand usage, please open an
+issue.
 
 ## License
 

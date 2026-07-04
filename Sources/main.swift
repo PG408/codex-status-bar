@@ -485,10 +485,6 @@ final class StatusController: NSObject, NSMenuDelegate {
         resetItem.target = self
         menu.addItem(resetItem)
 
-        let countItem = NSMenuItem(title: "Sessions: \(sessions.count)", action: nil, keyEquivalent: "")
-        countItem.isEnabled = false
-        menu.addItem(countItem)
-
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(title: "Quit Codex Status Bar", action: #selector(quit), keyEquivalent: "q")

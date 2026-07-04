@@ -1,6 +1,7 @@
 # Codex Hook Event Model
 
-This document defines the Phase 2 multi-session state model. New hook writes go to one file per Codex session:
+This document defines the Codex Status Bar hook event and state-file contract.
+New hook writes go to one file per Codex session:
 
 ```text
 ~/.codex/statusbar/state.d/<session_id>.json
@@ -151,6 +152,7 @@ Hook install/repair and hook-launched app behavior are verified by:
 
 ```bash
 node scripts/verify-hook-manager.js
+node scripts/verify-phase4-lifecycle.js
 ```
 
 ## Current Fixtures
