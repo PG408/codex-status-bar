@@ -1,22 +1,163 @@
 {
   "name": "subagent-session",
-  "description": "SubagentStart/SubagentStop 写入对应 session 文件，并保留 turn 归属。",
+  "description": "SubagentStart/SubagentStop 更新对应 session 内部事实，SubagentStop 不结束整体 session。",
   "steps": [
     {
       "event": "SubagentStart",
       "payload": {
         "session_id": "subagent",
         "turn_id": "sub-turn",
-        "cwd": "/tmp/subagent-project"
+        "cwd": "/tmp/subagent-project",
+        "agent_id": "agent-1",
+        "agent_type": "explorer"
       },
       "expect": {
         "sessions": {
           "subagent": {
             "state": "thinking",
-            "label": "Codex thinking",
+            "label": "Subagent running",
+            "activity": "subagent",
             "sessionId": "subagent",
             "turnId": "sub-turn",
             "project": "subagent-project",
+            "started": true
+          }
+        },
+        "lead": "subagent"
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "subagent",
+        "turn_id": "sub-turn",
+        "cwd": "/tmp/subagent-project",
+        "agent_id": "agent-1",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "subagent": {
+            "state": "thinking",
+            "label": "Subagent running",
+            "activity": "subagent",
+            "sessionId": "subagent",
+            "turnId": "sub-turn",
+            "project": "subagent-project",
+            "started": true
+          }
+        },
+        "lead": "subagent"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "subagent",
+        "turn_id": "sub-turn",
+        "cwd": "/tmp/subagent-project",
+        "tool_name": "Bash",
+        "agent_id": "agent-1",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "subagent": {
+            "state": "thinking",
+            "label": "Subagent running",
+            "activity": "subagent",
+            "tool": "Bash",
+            "turnId": "sub-turn",
+            "started": true
+          }
+        },
+        "lead": "subagent"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "payload": {
+        "session_id": "subagent",
+        "turn_id": "sub-turn",
+        "cwd": "/tmp/subagent-project",
+        "tool_name": "Bash",
+        "agent_id": "agent-1",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "subagent": {
+            "state": "thinking",
+            "label": "Subagent running",
+            "activity": "subagent",
+            "tool": "Bash",
+            "turnId": "sub-turn",
+            "started": true
+          }
+        },
+        "lead": "subagent"
+      }
+    },
+    {
+      "event": "PreCompact",
+      "payload": {
+        "session_id": "subagent",
+        "turn_id": "sub-turn",
+        "cwd": "/tmp/subagent-project",
+        "agent_id": "agent-1",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "subagent": {
+            "state": "thinking",
+            "label": "Subagent running",
+            "activity": "subagent",
+            "turnId": "sub-turn",
+            "started": true
+          }
+        },
+        "lead": "subagent"
+      }
+    },
+    {
+      "event": "PostCompact",
+      "payload": {
+        "session_id": "subagent",
+        "turn_id": "sub-turn",
+        "cwd": "/tmp/subagent-project",
+        "agent_id": "agent-1",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "subagent": {
+            "state": "thinking",
+            "label": "Subagent running",
+            "activity": "subagent",
+            "turnId": "sub-turn",
+            "started": true
+          }
+        },
+        "lead": "subagent"
+      }
+    },
+    {
+      "event": "PermissionRequest",
+      "payload": {
+        "session_id": "subagent",
+        "turn_id": "sub-turn",
+        "cwd": "/tmp/subagent-project",
+        "agent_id": "agent-1",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "subagent": {
+            "state": "permission",
+            "label": "Subagent awaiting permission",
+            "activity": "subagent",
+            "turnId": "sub-turn",
             "started": true
           }
         },
@@ -28,15 +169,18 @@
       "payload": {
         "session_id": "subagent",
         "turn_id": "sub-turn",
-        "cwd": "/tmp/subagent-project"
+        "cwd": "/tmp/subagent-project",
+        "agent_id": "agent-1",
+        "agent_type": "explorer"
       },
       "expect": {
         "sessions": {
-          "subagent": {
-            "state": "done",
-            "label": "Done",
+            "subagent": {
+            "state": "idle",
+            "label": "",
+            "activity": "",
             "startedAt": 0,
-            "turnId": "sub-turn"
+            "turnId": ""
           }
         },
         "lead": "subagent"

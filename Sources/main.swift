@@ -345,7 +345,10 @@ final class StatusController: NSObject, NSMenuDelegate {
     lazy var installedCodexTemplateIcon: NSImage? = loadInstalledCodexTemplateIcon()
 
     let codexGreen = NSColor(srgbRed: 0.08, green: 0.72, blue: 0.48, alpha: 1)
-    let blue = NSColor(srgbRed: 0.20, green: 0.48, blue: 0.92, alpha: 1)
+    let codexWhite = NSColor.white
+    let lightBlue = NSColor(srgbRed: 0.38, green: 0.68, blue: 1.0, alpha: 1)
+    let yellow = NSColor(srgbRed: 1.0, green: 0.78, blue: 0.18, alpha: 1)
+    let red = NSColor(srgbRed: 1.0, green: 0.23, blue: 0.20, alpha: 1)
     let amber = NSColor(srgbRed: 0.95, green: 0.70, blue: 0.16, alpha: 1)
     var longRunningToolIconTint: NSColor { amber }
 
@@ -768,7 +771,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             render(state: .thinking, label: label.isEmpty ? "Thinking..." : label, startedAt: startedAt)
         case .tool:
             logRender(state: .tool, label: label, startedAt: startedAt)
-            render(state: .tool, label: label.isEmpty ? "Working..." : label, startedAt: startedAt, iconWarning: iconWarning)
+            render(state: .tool, label: label.isEmpty ? "Using tool" : label, startedAt: startedAt, iconWarning: iconWarning)
         case .compacting:
             logRender(state: .compacting, label: label, startedAt: startedAt)
             render(state: .compacting, label: label.isEmpty ? "Compacting" : label, startedAt: startedAt)
@@ -1292,7 +1295,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         case .thinking:
             return session.label.isEmpty ? "Thinking..." : session.label
         case .tool:
-            return session.label.isEmpty ? "Working..." : session.label
+            return session.label.isEmpty ? "Using tool" : session.label
         case .compacting:
             return session.label.isEmpty ? "Compacting" : session.label
         case .permission:
@@ -1394,42 +1397,52 @@ final class StatusController: NSObject, NSMenuDelegate {
         let color: NSColor?
         switch state {
         case .permission:
-            color = amber
+            color = red
         case .tool where activeIconWarning:
             color = longRunningToolIconTint
-        case .tool, .compacting:
-            color = iconSystem ? nil : blue
-        default:
+        case .tool:
+            color = iconSystem ? nil : lightBlue
+        case .compacting, .waiting:
+            color = iconSystem ? nil : yellow
+        case .thinking:
             color = iconSystem ? nil : codexGreen
+        case .idle, .done:
+            color = iconSystem ? nil : codexWhite
         }
 
         if iconStyle == .pet, let pet = effectivePet(), let petImage = petImage(for: pet) {
             return petIcon(source: petImage, state: state, frame: frame)
         }
-        if state == .permission {
-            return dotIcon(color: color)
+        let image: NSImage
+        if iconSystem, state != .permission, let installedCodexTemplateIcon {
+            image = appIcon(source: installedCodexTemplateIcon, state: state, frame: frame, isTemplate: true)
+        } else if let installedCodexTemplateIcon, let color {
+            image = tintedAppIcon(source: installedCodexTemplateIcon, color: color, state: state, frame: frame)
+        } else if let installedCodexIcon, let color {
+            image = tintedAppIcon(source: installedCodexIcon, color: color, state: state, frame: frame)
+        } else if let installedCodexIcon {
+            image = appIcon(source: installedCodexIcon, state: state, frame: frame, isTemplate: false)
+        } else {
+            image = codexIcon(color: color, state: state, frame: frame)
         }
-        if iconSystem, let installedCodexTemplateIcon {
-            return appIcon(source: installedCodexTemplateIcon, state: state, frame: frame, isTemplate: true)
-        }
-        if let installedCodexTemplateIcon, let color {
-            return tintedAppIcon(source: installedCodexTemplateIcon, color: color, state: state, frame: frame)
-        }
-        if let installedCodexIcon {
-            return appIcon(source: installedCodexIcon, state: state, frame: frame, isTemplate: false)
-        }
-        return codexIcon(color: color, state: state, frame: frame)
+        return state == .permission ? iconWithStatusDot(image, color: red) : image
     }
 
-    func dotIcon(color: NSColor?) -> NSImage {
+    func iconWithStatusDot(_ source: NSImage, color: NSColor) -> NSImage {
         let size: CGFloat = 18
-        let dot: CGFloat = 9
         let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
-            (color ?? NSColor.labelColor).setFill()
-            NSBezierPath(ovalIn: NSRect(x: (size - dot) / 2, y: (size - dot) / 2, width: dot, height: dot)).fill()
+            source.draw(in: NSRect(x: 0, y: 0, width: size, height: size),
+                        from: .zero,
+                        operation: .sourceOver,
+                        fraction: 1)
+            let outer = NSRect(x: size - 7, y: size - 7, width: 6, height: 6)
+            NSColor.white.withAlphaComponent(0.92).setFill()
+            NSBezierPath(ovalIn: outer).fill()
+            color.setFill()
+            NSBezierPath(ovalIn: outer.insetBy(dx: 1, dy: 1)).fill()
             return true
         }
-        image.isTemplate = color == nil
+        image.isTemplate = false
         return image
     }
 

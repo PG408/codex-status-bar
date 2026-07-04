@@ -1,0 +1,76 @@
+{
+  "name": "subagent-main-stop-session",
+  "description": "Main Stop is the only session-level done signal and clears active subagent facts.",
+  "steps": [
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "main-stop",
+        "turn_id": "main-turn",
+        "cwd": "/tmp/main-stop-project"
+      },
+      "expect": {
+        "sessions": {
+          "main-stop": {
+            "state": "thinking",
+            "label": "Thinking...",
+            "turnId": "main-turn",
+            "started": true
+          }
+        },
+        "lead": "main-stop"
+      }
+    },
+    {
+      "event": "SubagentStart",
+      "payload": {
+        "session_id": "main-stop",
+        "turn_id": "sub-turn",
+        "cwd": "/tmp/main-stop-project",
+        "agent_id": "agent-main-stop",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "main-stop": {
+            "state": "thinking",
+            "label": "Subagent running",
+            "activity": "subagent",
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "main-stop"
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "session_id": "main-stop",
+        "turn_id": "main-turn",
+        "cwd": "/tmp/main-stop-project"
+      },
+      "expect": {
+        "sessions": {
+          "main-stop": {
+            "state": "done",
+            "label": "",
+            "activity": "",
+            "startedAt": 0,
+            "turnId": "main-turn",
+            "statusFacts": {
+              "main": {
+                "state": "done",
+                "label": "",
+                "tool": "",
+                "turnId": "main-turn",
+                "startedAt": 0
+              },
+              "subagents": {}
+            }
+          }
+        },
+        "lead": "main-stop"
+      }
+    }
+  ]
+}

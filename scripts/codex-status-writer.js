@@ -88,7 +88,7 @@ function labelForTool(toolName) {
     WebSearch: "Searching web",
     TodoWrite: "Planning",
   };
-  return labels[toolName] || "Using tool";
+  return labels[toolName];
 }
 
 function sessionIdFor(payload) {
@@ -96,7 +96,11 @@ function sessionIdFor(payload) {
 }
 
 function turnIdFor(payload) {
-  return safeId(payload.turn_id || payload.turnId || "");
+  return optionalSafeId(payload.turn_id || payload.turnId || "");
+}
+
+function optionalSafeId(value) {
+  return value ? safeId(value) : "";
 }
 
 function statePathFor(sessionId) {
@@ -111,25 +115,159 @@ function readPrevious(sessionId) {
   }
 }
 
-function isActiveTurn(payload, prev) {
-  const turnId = turnIdFor(payload);
-  if (!turnId || !prev.turnId) return Boolean(prev.sessionId);
-  return turnId === prev.turnId;
+function isSubagentPayload(payload) {
+  return Boolean(payload.agent_id || payload.agent_type);
 }
 
-function stateFor(payload, prev, now, startedAt, state, label, toolName) {
+function agentKeyFor(payload) {
+  return safeId(payload.agent_id || payload.turn_id || payload.turnId || payload.agent_type || "subagent");
+}
+
+function normalizeMainFact(main) {
+  if (!main || typeof main !== "object") {
+    return { state: "idle", label: "", tool: "", turnId: "", startedAt: 0 };
+  }
+  return {
+    state: typeof main.state === "string" ? main.state : "idle",
+    label: typeof main.label === "string" ? main.label : "",
+    tool: typeof main.tool === "string" ? main.tool : "",
+    turnId: typeof main.turnId === "string" ? optionalSafeId(main.turnId) : "",
+    startedAt: Number(main.startedAt || 0),
+  };
+}
+
+function normalizeSubagents(subagents) {
+  if (!subagents || typeof subagents !== "object" || Array.isArray(subagents)) return {};
+  const normalized = {};
+  for (const [key, value] of Object.entries(subagents)) {
+    if (!value || typeof value !== "object") continue;
+    normalized[safeId(key)] = {
+      state: typeof value.state === "string" ? value.state : "running",
+      label: typeof value.label === "string" ? value.label : "Subagent running",
+      tool: typeof value.tool === "string" ? value.tool : "",
+      turnId: typeof value.turnId === "string" ? optionalSafeId(value.turnId) : "",
+      startedAt: Number(value.startedAt || 0),
+    };
+  }
+  return normalized;
+}
+
+function factsFromPrevious(prev) {
+  if (prev.statusFacts && typeof prev.statusFacts === "object") {
+    return {
+      main: normalizeMainFact(prev.statusFacts.main),
+      subagents: normalizeSubagents(prev.statusFacts.subagents),
+    };
+  }
+
+  const state = typeof prev.state === "string" ? prev.state : "idle";
+  const isSubagentOnly = prev.activity === "subagent";
+  return {
+    main: normalizeMainFact({
+      state: isSubagentOnly ? "idle" : state,
+      label: isSubagentOnly ? "" : prev.label || "",
+      tool: isSubagentOnly ? "" : prev.tool || "",
+      turnId: isSubagentOnly ? "" : prev.turnId || "",
+      startedAt: isSubagentOnly ? 0 : Number(prev.startedAt || 0),
+    }),
+    subagents: {},
+  };
+}
+
+function deriveVisibleState(facts) {
+  const subagents = Object.values(facts.subagents || {})
+    .filter((subagent) => subagent.state !== "done")
+    .sort((left, right) => Number(right.startedAt || 0) - Number(left.startedAt || 0));
+  const subagentPermission = subagents.find((subagent) => subagent.state === "permission");
+  const runningSubagent = subagents.find((subagent) => subagent.state === "running");
+  const main = facts.main || {};
+
+  if (main.state === "permission") {
+    return { state: "permission", label: main.label || "Awaiting permission", tool: main.tool || "", activity: "", startedAt: 0, turnId: main.turnId || "" };
+  }
+  if (subagentPermission) {
+    return { state: "permission", label: "Subagent awaiting permission", tool: subagentPermission.tool || "", activity: "subagent", startedAt: 0, turnId: main.turnId || subagentPermission.turnId || "" };
+  }
+  if (main.state === "tool") {
+    return { state: "tool", label: main.label || "Using tool", tool: main.tool || "", activity: "", startedAt: Number(main.startedAt || 0), turnId: main.turnId || "" };
+  }
+  if (main.state === "compacting") {
+    return { state: "compacting", label: main.label || "Compacting", tool: main.tool || "", activity: "", startedAt: Number(main.startedAt || 0), turnId: main.turnId || "" };
+  }
+  if (runningSubagent) {
+    return { state: "thinking", label: "Subagent running", tool: runningSubagent.tool || "", activity: "subagent", startedAt: Number(runningSubagent.startedAt || 0), turnId: main.turnId || runningSubagent.turnId || "" };
+  }
+  if (main.state === "thinking") {
+    return { state: "thinking", label: main.label || "Thinking...", tool: main.tool || "", activity: "", startedAt: Number(main.startedAt || 0), turnId: main.turnId || "" };
+  }
+  if (main.state === "waiting") {
+    return { state: "waiting", label: main.label || "Waiting", tool: main.tool || "", activity: "", startedAt: 0, turnId: main.turnId || "" };
+  }
+  if (main.state === "done") {
+    return { state: "done", label: "", tool: "", activity: "", startedAt: 0, turnId: main.turnId || "" };
+  }
+  return { state: "idle", label: "", tool: "", activity: "", startedAt: 0, turnId: main.turnId || "" };
+}
+
+function isActiveMainTurn(payload, facts, prev) {
+  const turnId = turnIdFor(payload);
+  const mainTurnId = facts.main.turnId || (prev.activity === "subagent" ? "" : prev.turnId || "");
+  if (!turnId || !mainTurnId) return Boolean(prev.sessionId);
+  return turnId === mainTurnId;
+}
+
+function updateMain(facts, patch) {
+  return {
+    ...facts,
+    main: {
+      ...facts.main,
+      ...patch,
+    },
+  };
+}
+
+function updateSubagent(facts, payload, patch) {
+  const key = agentKeyFor(payload);
+  return {
+    ...facts,
+    subagents: {
+      ...facts.subagents,
+      [key]: {
+        state: "running",
+        label: "Subagent running",
+        tool: "",
+        turnId: turnIdFor(payload),
+        startedAt: Number(patch.startedAt || 0),
+        ...facts.subagents[key],
+        ...patch,
+      },
+    },
+  };
+}
+
+function stopSubagent(facts, payload) {
+  const key = agentKeyFor(payload);
+  const subagents = { ...facts.subagents };
+  if (subagents[key]) {
+    delete subagents[key];
+  }
+  return { ...facts, subagents };
+}
+
+function stateFor(payload, prev, facts, now) {
   const sessionId = sessionIdFor(payload);
-  const incomingTurnId = turnIdFor(payload);
   const pid = Number(prev.pid || process.ppid || 0);
   const surface = resolveSessionSurface(payload, prev, process.env, { pid, sessionId });
+  const visible = deriveVisibleState(facts);
   return {
-    state,
-    label,
-    tool: toolName,
+    state: visible.state,
+    label: visible.label,
+    tool: visible.tool,
+    activity: visible.activity,
     threadName: latestThreadName(sessionId),
     project: basename(payload.cwd || payload.working_directory || payload.current_working_directory) || prev.project || "",
     sessionId,
-    turnId: incomingTurnId || prev.turnId || "",
+    turnId: visible.turnId || facts.main.turnId || (prev.statusFacts ? "" : prev.turnId || ""),
     pid,
     entrypoint: surface.entrypoint,
     entrypointSource: surface.entrypointSource,
@@ -137,8 +275,9 @@ function stateFor(payload, prev, now, startedAt, state, label, toolName) {
     focusTarget: surface.focusTarget,
     transcript: typeof payload.transcript_path === "string" ? payload.transcript_path : prev.transcript || "",
     started: true,
-    startedAt,
+    startedAt: visible.startedAt,
     ts: now,
+    statusFacts: facts,
   };
 }
 
@@ -153,40 +292,64 @@ function writeStateForEvent(payload) {
   const nowMs = Date.now();
   const now = nowMs / 1000;
   const prev = readPrevious(sessionId);
-  let startedAt = Number(prev.startedAt || 0);
+  let facts = factsFromPrevious(prev);
+  let startedAt = Number(facts.main.startedAt || 0);
   const toolName = typeof payload.tool_name === "string" ? payload.tool_name : "";
+  const inSubagent = isSubagentPayload(payload);
 
   switch (event) {
-    case "UserPromptSubmit":
+    case "UserPromptSubmit": {
+      startedAt = now;
+      facts = inSubagent
+        ? updateSubagent(facts, payload, { state: "running", label: "Subagent running", tool: toolName, startedAt, turnId: turnIdFor(payload) })
+        : updateMain(facts, { state: "thinking", label: "Thinking...", tool: toolName, turnId: turnIdFor(payload), startedAt });
+      writeJsonAtomic(statePathFor(sessionId), stateFor(payload, prev, facts, now));
+      return true;
+    }
     case "SubagentStart": {
       startedAt = now;
-      writeJsonAtomic(
-        statePathFor(sessionId),
-        stateFor(payload, prev, now, startedAt, "thinking", "Codex thinking", toolName)
-      );
+      facts = updateSubagent(facts, payload, { state: "running", label: "Subagent running", tool: toolName, turnId: turnIdFor(payload), startedAt });
+      writeJsonAtomic(statePathFor(sessionId), stateFor(payload, prev, facts, now));
       return true;
     }
     case "PreToolUse": {
-      if (!isActiveTurn(payload, prev)) return false;
+      if (inSubagent) {
+        const subagentStartedAt = Number(facts.subagents[agentKeyFor(payload)]?.startedAt || now);
+        facts = updateSubagent(facts, payload, { state: "running", label: "Subagent running", tool: toolName, turnId: turnIdFor(payload), startedAt: subagentStartedAt });
+        writeJsonAtomic(statePathFor(sessionId), stateFor(payload, prev, facts, now));
+        return true;
+      }
+      if (!isActiveMainTurn(payload, facts, prev)) return false;
       if (!startedAt) startedAt = now;
+      facts = updateMain(facts, { state: "tool", label: labelForTool(toolName) || "Using tool", tool: toolName, turnId: turnIdFor(payload) || facts.main.turnId, startedAt });
       writeJsonAtomic(statePathFor(sessionId), {
-        ...stateFor(payload, prev, now, startedAt, "tool", labelForTool(toolName), toolName),
+        ...stateFor(payload, prev, facts, now),
         visibleUntilMs: nowMs + maxToolVisibleMs,
         minVisibleUntilMs: nowMs + minToolVisibleMs,
       });
       return true;
     }
     case "PreCompact": {
-      if (!isActiveTurn(payload, prev)) return false;
+      if (inSubagent) {
+        const subagentStartedAt = Number(facts.subagents[agentKeyFor(payload)]?.startedAt || now);
+        facts = updateSubagent(facts, payload, { state: "running", label: "Subagent running", tool: toolName, turnId: turnIdFor(payload), startedAt: subagentStartedAt });
+        writeJsonAtomic(statePathFor(sessionId), stateFor(payload, prev, facts, now));
+        return true;
+      }
+      if (!isActiveMainTurn(payload, facts, prev)) return false;
       if (!startedAt) startedAt = now;
-      writeJsonAtomic(
-        statePathFor(sessionId),
-        stateFor(payload, prev, now, startedAt, "compacting", "Compacting", toolName)
-      );
+      facts = updateMain(facts, { state: "compacting", label: "Compacting", tool: toolName, turnId: turnIdFor(payload) || facts.main.turnId, startedAt });
+      writeJsonAtomic(statePathFor(sessionId), stateFor(payload, prev, facts, now));
       return true;
     }
     case "PostToolUse": {
-      if (!isActiveTurn(payload, prev)) return false;
+      if (inSubagent) {
+        const subagentStartedAt = Number(facts.subagents[agentKeyFor(payload)]?.startedAt || now);
+        facts = updateSubagent(facts, payload, { state: "running", label: "Subagent running", tool: toolName, turnId: turnIdFor(payload), startedAt: subagentStartedAt });
+        writeJsonAtomic(statePathFor(sessionId), stateFor(payload, prev, facts, now));
+        return true;
+      }
+      if (!isActiveMainTurn(payload, facts, prev)) return false;
       if (prev.state !== "permission") {
         const waitMs = Math.max(0, Number(prev.minVisibleUntilMs || prev.visibleUntilMs || 0) - nowMs);
         if (prev.state === "tool" && waitMs > 0) {
@@ -195,35 +358,44 @@ function writeStateForEvent(payload) {
       }
       const afterWaitNow = Date.now() / 1000;
       if (!startedAt) startedAt = afterWaitNow;
-      writeJsonAtomic(
-        statePathFor(sessionId),
-        stateFor(payload, prev, afterWaitNow, startedAt, "thinking", "Codex thinking", toolName)
-      );
+      facts = updateMain(facts, { state: "thinking", label: "Thinking...", tool: toolName, turnId: turnIdFor(payload) || facts.main.turnId, startedAt });
+      writeJsonAtomic(statePathFor(sessionId), stateFor(payload, prev, facts, afterWaitNow));
       return true;
     }
     case "PostCompact": {
-      if (!isActiveTurn(payload, prev)) return false;
+      if (inSubagent) {
+        const subagentStartedAt = Number(facts.subagents[agentKeyFor(payload)]?.startedAt || now);
+        facts = updateSubagent(facts, payload, { state: "running", label: "Subagent running", tool: toolName, turnId: turnIdFor(payload), startedAt: subagentStartedAt });
+        writeJsonAtomic(statePathFor(sessionId), stateFor(payload, prev, facts, now));
+        return true;
+      }
+      if (!isActiveMainTurn(payload, facts, prev)) return false;
       const afterCompactNow = Date.now() / 1000;
       if (!startedAt) startedAt = afterCompactNow;
-      writeJsonAtomic(
-        statePathFor(sessionId),
-        stateFor(payload, prev, afterCompactNow, startedAt, "thinking", "Codex thinking", toolName)
-      );
+      facts = updateMain(facts, { state: "thinking", label: "Thinking...", tool: toolName, turnId: turnIdFor(payload) || facts.main.turnId, startedAt });
+      writeJsonAtomic(statePathFor(sessionId), stateFor(payload, prev, facts, afterCompactNow));
       return true;
     }
     case "PermissionRequest":
+      facts = inSubagent
+        ? updateSubagent(facts, payload, { state: "permission", label: "Subagent awaiting permission", tool: toolName, turnId: turnIdFor(payload), startedAt: Number(facts.subagents[agentKeyFor(payload)]?.startedAt || now) })
+        : updateMain(facts, { state: "permission", label: "Awaiting permission", tool: toolName, turnId: turnIdFor(payload) || facts.main.turnId, startedAt: 0 });
       writeJsonAtomic(statePathFor(sessionId), {
-        ...stateFor(payload, prev, now, 0, "permission", "Awaiting permission", toolName),
+        ...stateFor(payload, prev, facts, now),
         minVisibleUntilMs: nowMs + minPermissionVisibleMs,
       });
       return true;
     case "Stop":
+      if (!isActiveMainTurn(payload, facts, prev)) return false;
+      facts = {
+        ...updateMain(facts, { state: "done", label: "", tool: "", turnId: turnIdFor(payload) || facts.main.turnId, startedAt: 0 }),
+        subagents: {},
+      };
+      writeJsonAtomic(statePathFor(sessionId), stateFor(payload, prev, facts, now));
+      return true;
     case "SubagentStop":
-      if (!isActiveTurn(payload, prev)) return false;
-      writeJsonAtomic(
-        statePathFor(sessionId),
-        stateFor(payload, prev, now, 0, "done", "Done", toolName)
-      );
+      facts = stopSubagent(facts, payload);
+      writeJsonAtomic(statePathFor(sessionId), stateFor(payload, prev, facts, now));
       return true;
     case "SessionStart":
     case "SessionEnd":

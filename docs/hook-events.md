@@ -10,12 +10,14 @@ The Swift app reads `state.d/` and selects one lead session for the menu bar. Du
 
 ## State Fields
 
-Each session file contains display metadata only:
+Each session file contains display metadata and writer-owned status facts. Swift reads the
+derived display fields; the writer uses `statusFacts` to aggregate main-thread and
+subagent activity inside one session before deriving those fields.
 
 | Field | Purpose |
 |---|---|
 | `state` | One of `idle`, `done`, `thinking`, `tool`, `compacting`, `permission`, or `waiting`. |
-| `label` | Short menu bar label such as `Codex thinking`, `Running command`, or `Awaiting permission`. |
+| `label` | Short menu bar label such as `Thinking...`, `Running command`, or `Awaiting permission`. |
 | `tool` | Raw tool name when available. |
 | `threadName` | Latest matching `thread_name` from `~/.codex/session_index.jsonl`; defaults to `无法获取 thread 名称` when unavailable. |
 | `project` | Basename of `cwd`, `working_directory`, or `current_working_directory`. |
@@ -32,6 +34,8 @@ Each session file contains display metadata only:
 | `ts` | Unix timestamp seconds, with millisecond precision, when the session state was written. |
 | `visibleUntilMs` | Writer compatibility field for short tool visibility. Swift no longer uses it to downgrade a running tool to `thinking`. |
 | `minVisibleUntilMs` | Optional lower bound for tool or permission visibility. |
+| `activity` | Optional visible activity owner. `subagent` means the current derived display came from subagent activity. |
+| `statusFacts` | Writer-owned internal facts for the session, currently `main` plus `subagents`. This is not a Swift UI contract beyond being safe to ignore. |
 
 The writer does not store prompts, command output, transcript contents, or secrets.
 
@@ -65,24 +69,47 @@ After a successful `SessionStart` or visible activity write, the writer asks the
 |---|---:|---|
 | `SessionStart` | none | Creates `idle` session state with `started: false`. |
 | `SessionEnd` | none | Marks an existing session `done`, clears active turn metadata, and lets the menu retention setting decide when it disappears. |
-| `UserPromptSubmit` | none | Writes `thinking`, `Codex thinking`, a non-zero `startedAt`, `started: true`, and the incoming `turnId`. |
-| `PreToolUse` | `*` | If the payload matches that session's active `turnId`, writes `tool` and maps the tool name to a short label. |
-| `PostToolUse` | `*` | If the payload matches that session's active `turnId`, returns to `thinking` and preserves the timer. |
-| `PreCompact` | none | If the payload matches that session's active `turnId`, writes `compacting`, `Compacting`, and preserves the active timer. |
-| `PostCompact` | none | If the payload matches that session's active `turnId`, returns to `thinking` and preserves the active timer. |
-| `PermissionRequest` | `*` | Writes `permission`, `Awaiting permission`, `started: true`, and clears `startedAt`. |
-| `Stop` | none | If the payload matches that session's active `turnId`, writes `done`, `Done`, and clears `startedAt`. |
-| `SubagentStart` | none | Starts a visible subagent turn with the same behavior as `UserPromptSubmit`. |
-| `SubagentStop` | none | If the payload matches that session's active `turnId`, writes `done`, `Done`, and clears `startedAt`. |
+| `UserPromptSubmit` | none | Updates main `thinking`, `Thinking...`, a non-zero `startedAt`, `started: true`, and the incoming main `turnId`. During a subagent payload, updates that subagent as running instead. |
+| `PreToolUse` | `*` | If the payload matches the main active `turnId`, updates main `tool` and maps the tool name to a short label. Unknown tools use `Using tool`. During a subagent payload, updates that subagent as running without overriding a higher-priority main tool. |
+| `PostToolUse` | `*` | If the payload matches the main active `turnId`, returns main to `thinking` and preserves the timer. During a subagent payload, keeps that subagent running. |
+| `PreCompact` | none | If the payload matches the main active `turnId`, updates main `compacting`, `Compacting`, and preserves the active timer. During a subagent payload, keeps that subagent running. |
+| `PostCompact` | none | If the payload matches the main active `turnId`, returns main to `thinking` and preserves the timer. During a subagent payload, keeps that subagent running. |
+| `PermissionRequest` | `*` | Updates main or subagent permission. Main permission displays `Awaiting permission`; subagent permission displays `Subagent awaiting permission`. |
+| `Stop` | none | If the payload matches the main active `turnId`, updates main `done`, clears active main metadata, and derives session-level `done`. |
+| `SubagentStart` | none | Adds or updates the corresponding subagent as running. |
+| `SubagentStop` | none | Removes the corresponding subagent from active facts. It does not write session-level `done`; the session display is re-derived from remaining main and subagent facts. |
+
+A subagent payload is any payload that carries `agent_id` or `agent_type`. This covers the real Codex subagent sequence where `SubagentStart` is immediately followed by a subagent-scoped `UserPromptSubmit` and tool events in the same `session_id`.
 
 ## Same-Session Turn Guard
 
-Tool and stop events must match the target session file before they can overwrite it:
+Main-thread tool and stop events must match the target session file before they can update main facts:
 
 - The file path is selected by `session_id`.
-- When both the incoming payload and existing session file have a turn id, `turn_id` must match the file's `turnId`.
+- When both the incoming payload and existing session file have a main turn id, `turn_id` must match the file's main `turnId`.
 - Old events from the same session are ignored when their turn id does not match.
 - Events from other sessions write only their own session file and cannot overwrite another session file.
+
+Subagent events are keyed by `agent_id` when present, otherwise by their `turn_id`.
+`SubagentStop` affects only that subagent fact. This keeps the main turn able to
+accept later `PostToolUse` or `Stop` events after a subagent completes.
+
+## Single-Session State Aggregation
+
+Within one session, the writer derives `state`, `label`, `tool`, and `activity` from
+internal facts in this order:
+
+1. main or subagent permission
+2. main tool
+3. main compacting
+4. subagent running
+5. main thinking
+6. waiting
+7. done
+8. idle
+
+This priority is local to one session. It does not change Swift's cross-session lead
+selection rule.
 
 ## Lead Session Selection
 
@@ -94,7 +121,7 @@ The Swift app aggregates all files in `state.d/` and renders one lead session in
 
 Within the same priority tier, the most recent `ts` wins.
 
-A live `thinking` or `compacting` session remains active until a matching `PostCompact`, `Stop`, or `SubagentStop` writes the next explicit state, `SessionEnd` removes the file, Swift detects a transcript `turn_aborted` event with `reason: "interrupted"`, or Swift determines that the owning surface is no longer alive. A live `tool` session remains `tool` until `PostToolUse`; after three minutes from `PreToolUse`, Swift changes only the icon tint as a warning and leaves the persisted state, label, and timer semantics unchanged.
+A live main `thinking` or `compacting` session remains active until a matching `PostCompact` or main `Stop` updates main facts, `SessionEnd` marks the file complete, Swift detects a transcript `turn_aborted` event with `reason: "interrupted"`, or Swift determines that the owning surface is no longer alive. `SubagentStop` only removes subagent activity. A live main `tool` session remains `tool` until `PostToolUse`; after three minutes from `PreToolUse`, Swift changes only the icon tint as a warning and leaves the persisted state, label, and timer semantics unchanged.
 
 For liveness, CLI sessions may use the hook parent pid as supporting evidence. Desktop sessions do not use the Codex app pid to prove an individual session is still active, because the Desktop app process can outlive any one conversation. `SessionEnd` is the normal deletion path; Codex Desktop process exit is only a cleanup signal for Desktop session files.
 
@@ -133,6 +160,8 @@ node scripts/verify-hook-manager.js
 | `two-cli-sessions.json` | Two CLI sessions exist in parallel; permission outranks tool/thinking. |
 | `cli-desktop-parallel.json` | CLI and desktop sessions coexist; desktop permission request becomes lead and lifecycle end removes the file. |
 | `stale-background-cannot-win.json` | Old same-session tool events and background sessions cannot displace a permission lead. |
-| `subagent-session.json` | `SubagentStart` and `SubagentStop` update the corresponding session file. |
+| `subagent-session.json` | `SubagentStart`, subagent-scoped prompt/tool/compact events, subagent permission, and `SubagentStop` update the corresponding session facts while keeping only the two Subagent labels visible. |
+| `subagent-main-stop-session.json` | Main `Stop` is the only session-level done signal and clears active subagent facts. |
+| `subagent-priority-session.json` | Single-session aggregation keeps main thinking/tool/compacting authoritative according to local priority, keeps subagent permission highest, and accepts later main `PostToolUse` / `Stop` after `SubagentStop`. |
 | `compacting-session.json` | `PreCompact` shows context compaction as `compacting`, then `PostCompact` returns to `thinking`. |
 | `transcript-path-session.json` | Writer preserves `transcript_path` across subsequent events for interruption recovery. |

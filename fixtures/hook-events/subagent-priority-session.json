@@ -1,0 +1,360 @@
+{
+  "name": "subagent-priority-session",
+  "description": "Single-session aggregation keeps main activity authoritative while subagents start and stop.",
+  "steps": [
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "main-turn",
+        "cwd": "/tmp/priority-project"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "thinking",
+            "label": "Thinking...",
+            "activity": "",
+            "turnId": "main-turn",
+            "started": true
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "SubagentStart",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "sub-turn-a",
+        "cwd": "/tmp/priority-project",
+        "agent_id": "agent-a",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "thinking",
+            "label": "Subagent running",
+            "activity": "subagent",
+            "turnId": "main-turn",
+            "started": true
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "SubagentStop",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "sub-turn-a",
+        "cwd": "/tmp/priority-project",
+        "agent_id": "agent-a",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "thinking",
+            "label": "Thinking...",
+            "activity": "",
+            "turnId": "main-turn",
+            "started": true
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "main-turn",
+        "cwd": "/tmp/priority-project",
+        "tool_name": "Bash"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "tool",
+            "label": "Running command",
+            "activity": "",
+            "tool": "Bash",
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "SubagentStart",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "sub-turn-b",
+        "cwd": "/tmp/priority-project",
+        "agent_id": "agent-b",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "tool",
+            "label": "Running command",
+            "activity": "",
+            "tool": "Bash",
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "PermissionRequest",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "sub-turn-b",
+        "cwd": "/tmp/priority-project",
+        "agent_id": "agent-b",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "permission",
+            "label": "Subagent awaiting permission",
+            "activity": "subagent",
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "SubagentStop",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "sub-turn-b",
+        "cwd": "/tmp/priority-project",
+        "agent_id": "agent-b",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "tool",
+            "label": "Running command",
+            "activity": "",
+            "tool": "Bash",
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "main-turn",
+        "cwd": "/tmp/priority-project",
+        "tool_name": "Bash"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "thinking",
+            "label": "Thinking...",
+            "activity": "",
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "PreCompact",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "main-turn",
+        "cwd": "/tmp/priority-project"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "compacting",
+            "label": "Compacting",
+            "activity": "",
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "SubagentStart",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "sub-turn-compact",
+        "cwd": "/tmp/priority-project",
+        "agent_id": "agent-compact",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "compacting",
+            "label": "Compacting",
+            "activity": "",
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "SubagentStop",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "sub-turn-compact",
+        "cwd": "/tmp/priority-project",
+        "agent_id": "agent-compact",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "compacting",
+            "label": "Compacting",
+            "activity": "",
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "PostCompact",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "main-turn",
+        "cwd": "/tmp/priority-project"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "thinking",
+            "label": "Thinking...",
+            "activity": "",
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "SubagentStart",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "sub-turn-c",
+        "cwd": "/tmp/priority-project",
+        "agent_id": "agent-c",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "thinking",
+            "label": "Subagent running",
+            "activity": "subagent",
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "SubagentStart",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "sub-turn-d",
+        "cwd": "/tmp/priority-project",
+        "agent_id": "agent-d",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "thinking",
+            "label": "Subagent running",
+            "activity": "subagent",
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "SubagentStop",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "sub-turn-c",
+        "cwd": "/tmp/priority-project",
+        "agent_id": "agent-c",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "thinking",
+            "label": "Subagent running",
+            "activity": "subagent",
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "SubagentStop",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "sub-turn-d",
+        "cwd": "/tmp/priority-project",
+        "agent_id": "agent-d",
+        "agent_type": "explorer"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "thinking",
+            "label": "Thinking...",
+            "activity": "",
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "priority"
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "session_id": "priority",
+        "turn_id": "main-turn",
+        "cwd": "/tmp/priority-project"
+      },
+      "expect": {
+        "sessions": {
+          "priority": {
+            "state": "done",
+            "label": "",
+            "activity": "",
+            "startedAt": 0,
+            "turnId": "main-turn"
+          }
+        },
+        "lead": "priority"
+      }
+    }
+  ]
+}

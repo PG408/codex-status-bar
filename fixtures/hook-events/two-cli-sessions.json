@@ -32,7 +32,7 @@
         "sessions": {
           "cli-a": {
             "state": "thinking",
-            "label": "Codex thinking",
+            "label": "Thinking...",
             "turnId": "turn-a",
             "started": true
           }
@@ -55,7 +55,7 @@
           },
           "cli-b": {
             "state": "thinking",
-            "label": "Codex thinking",
+            "label": "Thinking...",
             "turnId": "turn-b",
             "project": "project-b",
             "started": true
