@@ -20,7 +20,7 @@ subagent activity inside one session before deriving those fields.
 | `state` | One of `idle`, `done`, `thinking`, `tool`, `compacting`, `permission`, or `waiting`. |
 | `label` | Short menu bar label such as `Thinking`, `Running command`, or `Awaiting permission`. |
 | `tool` | Raw tool name when available. |
-| `threadName` | Latest matching `thread_name` from `~/.codex/session_index.jsonl`; defaults to `Unknown` when unavailable. |
+| `threadName` | Latest matching `thread_name` from `~/.codex/session_index.jsonl`; Side Chat sessions are detected from Codex Global State prompt history and display as `Side Chat`; defaults to `Unknown` when unavailable. |
 | `project` | Basename of `cwd`, `working_directory`, or `current_working_directory`. |
 | `sessionId` | Sanitized `session_id` or `sessionId`; also used as the state filename. |
 | `turnId` | Sanitized `turn_id` or `turnId` for same-session stale event protection. |
@@ -39,6 +39,11 @@ subagent activity inside one session before deriving those fields.
 | `statusFacts` | Writer-owned internal facts for the session, currently `main` plus `subagents`. This is not a Swift UI contract beyond being safe to ignore. |
 
 The writer does not store prompts, command output, transcript contents, or secrets.
+
+Side Chat detection reads `~/.codex/.codex-global-state.json` and checks whether
+`electron-persisted-atom-state.prompt-history.<sessionId>` exists when no
+matching formal thread name is present. It does not use the prompt text as the
+display name; Side Chat rows are named `Side Chat`.
 
 ## Surface Resolution
 

@@ -29,10 +29,12 @@ The Sessions section groups rows by `project`. A missing project is shown under 
 Each session row is a custom AppKit view with:
 
 - thread name from the latest matching `thread_name` in `~/.codex/session_index.jsonl`, truncated before it can overlap the timer or badge
+- `Side Chat` when the session is a Codex Side Chat detected from local Codex Global State prompt history
 - elapsed timer for `thinking`, `tool`, and `compacting`
 - `CLI` or `APP` badge when the surface is known; the badge uses the active color for running sessions and a muted color for resting sessions
 
-If the thread name cannot be read, the row shows `Unknown`.
+If the thread name cannot be read and the session is not recognized as a Side
+Chat, the row shows `Unknown`.
 
 Hover uses the system selection material so text, icons, and badges stay readable in light and dark menu appearances.
 

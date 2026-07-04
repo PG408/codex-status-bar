@@ -58,6 +58,7 @@ const checks = [
   ["Writer recognizes subagent payload ownership", writer.includes("function isSubagentPayload") && writer.includes("payload.agent_id || payload.agent_type")],
   ["Writer does not treat SubagentStop as session Stop", writer.includes('case "SubagentStop"') && writer.includes("stopSubagent(facts, payload)") && !writer.includes('case "Stop":\n    case "SubagentStop"')],
   ["Writers persist session_index thread names", writer.includes("latestThreadName(sessionId)") && lifecycleWriter.includes("latestThreadName(sessionId)")],
+  ["Session index resolver labels Side Chat sessions", fs.readFileSync("scripts/lib/session-index.js", "utf8").includes('"Side Chat"') && fs.readFileSync("scripts/lib/session-index.js", "utf8").includes("hasSideChatPromptHistory")],
   ["Writer preserves transcript path for interrupt recovery", writer.includes("transcript_path") && writer.includes("prev.transcript")],
   ["Swift uses transcript turn_aborted marker for active-state recovery", swift.includes("transcriptShowsUserInterrupt") && swift.includes("turn_aborted")],
   ["Swift avoids high-frequency status item animation", !swift.includes("Timer(timeInterval: 0.12")],

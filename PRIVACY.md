@@ -10,6 +10,7 @@ status data to the project maintainer.
 | `~/.codex/statusbar/state.d/<session_id>.json` | Per-session display state written by this project's hooks. |
 | `~/.codex/statusbar/state.json` | Legacy fallback display state when `state.d` is empty. |
 | `~/.codex/session_index.jsonl` | Thread names shown in the Sessions menu. |
+| `~/.codex/.codex-global-state.json` | Side Chat detection through local `prompt-history` keys. |
 | `~/.codex/state_5.sqlite` | Best-effort archived-thread metadata for Codex Desktop sessions. |
 | `~/.codex/hooks.json` | Hook installation and repair. |
 
@@ -37,6 +38,10 @@ Codex Status Bar does not intentionally store or transmit:
 The optional hook discovery log records event names, payload keys, payload value
 types, and selected safe identifiers. It is disabled unless
 `CODEX_STATUSBAR_DEBUG=1`.
+
+For Side Chat rows, the app checks whether a local prompt-history entry exists
+for the session id, but it displays the fixed label `Side Chat` and does not use
+the prompt text as the menu title.
 
 ## Network Access
 

@@ -54,7 +54,7 @@ session. Instead, it combines surface identity and activity in the `APP` or
 | Row element | Rule |
 |---|---|
 | Project group | Uses `project`; missing projects are grouped under `Other`. |
-| Session title | Uses latest `thread_name` from `~/.codex/session_index.jsonl`; fallback is `Unknown`. |
+| Session title | Uses latest `thread_name` from `~/.codex/session_index.jsonl`; Side Chat sessions display `Side Chat`; fallback is `Unknown`. |
 | Timer | Shown for `thinking`, `tool`, and `compacting` when `startedAt > 0`. |
 | Badge text | `APP` for Desktop focus targets, `CLI` for terminal/editor focus targets. |
 | Running badge | Uses the system accent color for `thinking`, `tool`, and `compacting`. |

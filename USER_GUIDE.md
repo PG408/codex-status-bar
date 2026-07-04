@@ -44,12 +44,18 @@ status never changes, open Codex and check:
 The Sessions section groups tracked sessions by project. Each row shows:
 
 - the latest thread name from local Codex metadata;
+- `Side Chat` for Codex Side Chat sessions that do not have a formal thread name;
 - an elapsed timer when the session is active;
 - an `APP` or `CLI` badge when the session surface is known.
 
 Clicking a Desktop session opens `codex://threads/<sessionId>` when available.
 Clicking a CLI session focuses the terminal or editor app when a reliable target
 is known. Exact terminal tab/window focus is not implemented.
+
+Side Chat rows are grouped under the same project as the hook event that created
+their status record. Their title is intentionally generic: Codex Status Bar uses
+local Codex Global State only to recognize that the session is a Side Chat, not
+to show the Side Chat prompt as the row name.
 
 ## Manual State Testing
 
