@@ -1,9 +1,6 @@
-<img width="672" alt="Codex Status Bar menu bar demo" src="assets/1.gif" />
-<br><br>
 
 <a href="../../releases"><img src="assets/download.png" alt="Download CodexStatusBar.dmg for macOS" width="260"></a>
 <br>
-
 ## Codex Status Bar
 
 A tiny macOS menu bar app that shows **Codex's live status**: thinking, running
@@ -13,18 +10,25 @@ server component.
 
 > Built so you can tab away during a long Codex turn and still see, at a
 > glance, whether Codex is working, waiting on you, compacting, or done.
-
+> 
+<img width="672" alt="Codex Status Bar menu bar demo" src="assets/1.gif" />
+<br><br>
 <img width="710" alt="Codex Status Bar menu demo" src="assets/2.gif" />
 <br>
 
-> [!IMPORTANT]
-> **Multi-session support.** Codex Status Bar tracks Codex Desktop and Codex CLI
-> sessions at the same time. The menu bar surfaces the highest-priority session:
-> permission requests win over active work, active work wins over idle or done
-> sessions, and the dropdown lists tracked sessions grouped by project. Desktop
-> sessions can open their Codex thread through `codex://threads/<sessionId>`;
-> CLI sessions keep their terminal/editor focus path.
 
+> [!WARNING]
+> **Experimental software.** This project was built with Codex vibe coding and
+> should be used at your own risk. It has not been exhaustively tested across all
+> Codex surfaces, and Terminal / CLI scenarios are especially likely to vary by
+> shell, terminal app, hook configuration, and Codex version.
+
+> [!INFO]
+Codex Status Bar is strongly inspired by two reference projects:
+>-  [ilyastorunn/codex-status-bar](https://github.com/ilyastorunn/codex-status-bar) provided the Codex-focused prototype and installation direction.
+> - [m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar) provided the mature local-file plus macOS menu-bar architecture.
+
+**[See acknowledgements ->](ACKNOWLEDGEMENTS.md)**
 ---
 
 ## What it shows
@@ -70,9 +74,31 @@ Everything is controlled from the menu:
 
 ## Install
 
-### Option A - Build from source
+### Option A - Download the release DMG
 
-This is the current supported local workflow.
+Download the latest `CodexStatusBar.dmg` from [Releases](../../releases), open
+the disk image, and copy `CodexStatusBar.app` to `/Applications` or another
+local app folder.
+
+> [!CAUTION]
+> Release DMGs are preview artifacts. They are not currently signed with a
+> Developer ID certificate and are not notarized by Apple. On first launch,
+> macOS Gatekeeper may require you to right-click the app and choose **Open**, or
+> allow it from **System Settings -> Privacy & Security**.
+
+After launching the app, install or repair Codex hooks from the repository:
+
+```bash
+node scripts/install-codex-statusbar.js
+```
+
+Start a new Codex session, or send a new prompt in an existing session after
+hooks are trusted. Codex may require you to review command hooks through
+`/hooks` before they run.
+
+### Option B - Build from source
+
+Use this path if you prefer to inspect and build the app locally.
 
 ```bash
 git clone <your-fork-or-repo-url>
@@ -86,15 +112,16 @@ Start a new Codex session, or send a new prompt in an existing session after
 hooks are trusted. Codex may require you to review command hooks through
 `/hooks` before they run.
 
-### Option B - DMG
+You can also create a local unsigned DMG:
 
-Release packaging can use the same app bundle built by `./build.sh --dmg`, but
-this project does not currently provide a signed and notarized public DMG.
-Published release artifacts should be attached under [Releases](../../releases).
+```bash
+./build.sh --dmg
+```
 
 ### Updating
 
-Rebuild or replace the app, then run the hook installer again:
+Replace the app from a newer release DMG or rebuild it from source, then run the
+hook installer again:
 
 ```bash
 ./build.sh
@@ -158,4 +185,5 @@ issue.
 
 ## License
 
-MIT
+MIT. Third-party MIT notices for referenced or partially adapted material are
+preserved in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
