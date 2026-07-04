@@ -13,7 +13,7 @@
         "sessions": {
           "main-stop": {
             "state": "thinking",
-            "label": "Thinking...",
+            "label": "Thinking",
             "turnId": "main-turn",
             "started": true
           }

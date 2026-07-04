@@ -2,7 +2,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const DEFAULT_THREAD_NAME = "无法获取 thread 名称";
+const DEFAULT_THREAD_NAME = "Unknown";
 
 function sessionIndexPath(env = process.env) {
   return env.CODEX_SESSION_INDEX_PATH || path.join(os.homedir(), ".codex", "session_index.jsonl");

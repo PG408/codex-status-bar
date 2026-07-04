@@ -31,7 +31,7 @@ Each session row is a custom AppKit view with:
 - elapsed timer for `thinking`, `tool`, and `compacting`
 - `CLI` or `APP` badge when the surface is known; the badge uses the active color for running sessions and a muted color for resting sessions
 
-If the thread name cannot be read, the row shows `无法获取 thread 名称`.
+If the thread name cannot be read, the row shows `Unknown`.
 
 Hover uses the system selection material so text, icons, and badges stay readable in light and dark menu appearances.
 

@@ -13,7 +13,7 @@
         "sessions": {
           "priority": {
             "state": "thinking",
-            "label": "Thinking...",
+            "label": "Thinking",
             "activity": "",
             "turnId": "main-turn",
             "started": true
@@ -57,7 +57,7 @@
         "sessions": {
           "priority": {
             "state": "thinking",
-            "label": "Thinking...",
+            "label": "Thinking",
             "activity": "",
             "turnId": "main-turn",
             "started": true
@@ -164,7 +164,7 @@
         "sessions": {
           "priority": {
             "state": "thinking",
-            "label": "Thinking...",
+            "label": "Thinking",
             "activity": "",
             "turnId": "main-turn"
           }
@@ -244,7 +244,7 @@
         "sessions": {
           "priority": {
             "state": "thinking",
-            "label": "Thinking...",
+            "label": "Thinking",
             "activity": "",
             "turnId": "main-turn"
           }
@@ -328,7 +328,7 @@
         "sessions": {
           "priority": {
             "state": "thinking",
-            "label": "Thinking...",
+            "label": "Thinking",
             "activity": "",
             "turnId": "main-turn"
           }

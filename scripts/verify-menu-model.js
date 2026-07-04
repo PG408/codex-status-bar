@@ -51,7 +51,7 @@ const checks = [
   ["Swift uses Codex process fallback consistently for desktop liveness", swift.includes("func isDesktopSession") && swift.includes("return isCodexDesktopProcess(pid: session.pid)")],
   ["Swift treats compacting and tools as active priority", swift.includes("case .thinking, .tool, .compacting")],
   ["Writer preserves existing tool timer semantics", writer.includes("if (!startedAt) startedAt = now") && writer.includes("if (!startedAt) startedAt = afterWaitNow")],
-  ["Writer uses Thinking label consistently", writer.includes('"Thinking..."') && !writer.includes('"Codex thinking"')],
+  ["Writer uses Thinking label consistently", writer.includes('"Thinking"') && !writer.includes('"Thinking..."') && !writer.includes('"Codex thinking"')],
   ["Writer keeps unknown tool fallback at event layer", writer.includes('labelForTool(toolName) || "Using tool"') && !writer.includes('return labels[toolName] || "Using tool"')],
   ["Writer derives display fields from single-session status facts", writer.includes("function deriveVisibleState") && writer.includes("statusFacts: facts")],
   ["Writer keeps subagent activity to two Subagent labels", writer.includes('"Subagent running"') && writer.includes('"Subagent awaiting permission"')],

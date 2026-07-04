@@ -198,7 +198,7 @@ function deriveVisibleState(facts) {
     return { state: "thinking", label: "Subagent running", tool: runningSubagent.tool || "", activity: "subagent", startedAt: Number(runningSubagent.startedAt || 0), turnId: main.turnId || runningSubagent.turnId || "" };
   }
   if (main.state === "thinking") {
-    return { state: "thinking", label: main.label || "Thinking...", tool: main.tool || "", activity: "", startedAt: Number(main.startedAt || 0), turnId: main.turnId || "" };
+    return { state: "thinking", label: main.label || "Thinking", tool: main.tool || "", activity: "", startedAt: Number(main.startedAt || 0), turnId: main.turnId || "" };
   }
   if (main.state === "waiting") {
     return { state: "waiting", label: main.label || "Waiting", tool: main.tool || "", activity: "", startedAt: 0, turnId: main.turnId || "" };
@@ -302,7 +302,7 @@ function writeStateForEvent(payload) {
       startedAt = now;
       facts = inSubagent
         ? updateSubagent(facts, payload, { state: "running", label: "Subagent running", tool: toolName, startedAt, turnId: turnIdFor(payload) })
-        : updateMain(facts, { state: "thinking", label: "Thinking...", tool: toolName, turnId: turnIdFor(payload), startedAt });
+        : updateMain(facts, { state: "thinking", label: "Thinking", tool: toolName, turnId: turnIdFor(payload), startedAt });
       writeJsonAtomic(statePathFor(sessionId), stateFor(payload, prev, facts, now));
       return true;
     }
@@ -358,7 +358,7 @@ function writeStateForEvent(payload) {
       }
       const afterWaitNow = Date.now() / 1000;
       if (!startedAt) startedAt = afterWaitNow;
-      facts = updateMain(facts, { state: "thinking", label: "Thinking...", tool: toolName, turnId: turnIdFor(payload) || facts.main.turnId, startedAt });
+      facts = updateMain(facts, { state: "thinking", label: "Thinking", tool: toolName, turnId: turnIdFor(payload) || facts.main.turnId, startedAt });
       writeJsonAtomic(statePathFor(sessionId), stateFor(payload, prev, facts, afterWaitNow));
       return true;
     }
@@ -372,7 +372,7 @@ function writeStateForEvent(payload) {
       if (!isActiveMainTurn(payload, facts, prev)) return false;
       const afterCompactNow = Date.now() / 1000;
       if (!startedAt) startedAt = afterCompactNow;
-      facts = updateMain(facts, { state: "thinking", label: "Thinking...", tool: toolName, turnId: turnIdFor(payload) || facts.main.turnId, startedAt });
+      facts = updateMain(facts, { state: "thinking", label: "Thinking", tool: toolName, turnId: turnIdFor(payload) || facts.main.turnId, startedAt });
       writeJsonAtomic(statePathFor(sessionId), stateFor(payload, prev, facts, afterCompactNow));
       return true;
     }

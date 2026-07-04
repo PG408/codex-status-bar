@@ -17,9 +17,9 @@ subagent activity inside one session before deriving those fields.
 | Field | Purpose |
 |---|---|
 | `state` | One of `idle`, `done`, `thinking`, `tool`, `compacting`, `permission`, or `waiting`. |
-| `label` | Short menu bar label such as `Thinking...`, `Running command`, or `Awaiting permission`. |
+| `label` | Short menu bar label such as `Thinking`, `Running command`, or `Awaiting permission`. |
 | `tool` | Raw tool name when available. |
-| `threadName` | Latest matching `thread_name` from `~/.codex/session_index.jsonl`; defaults to `无法获取 thread 名称` when unavailable. |
+| `threadName` | Latest matching `thread_name` from `~/.codex/session_index.jsonl`; defaults to `Unknown` when unavailable. |
 | `project` | Basename of `cwd`, `working_directory`, or `current_working_directory`. |
 | `sessionId` | Sanitized `session_id` or `sessionId`; also used as the state filename. |
 | `turnId` | Sanitized `turn_id` or `turnId` for same-session stale event protection. |
@@ -69,7 +69,7 @@ After a successful `SessionStart` or visible activity write, the writer asks the
 |---|---:|---|
 | `SessionStart` | none | Creates `idle` session state with `started: false`. |
 | `SessionEnd` | none | Marks an existing session `done`, clears active turn metadata, and lets the menu retention setting decide when it disappears. |
-| `UserPromptSubmit` | none | Updates main `thinking`, `Thinking...`, a non-zero `startedAt`, `started: true`, and the incoming main `turnId`. During a subagent payload, updates that subagent as running instead. |
+| `UserPromptSubmit` | none | Updates main `thinking`, `Thinking`, a non-zero `startedAt`, `started: true`, and the incoming main `turnId`. During a subagent payload, updates that subagent as running instead. |
 | `PreToolUse` | `*` | If the payload matches the main active `turnId`, updates main `tool` and maps the tool name to a short label. Unknown tools use `Using tool`. During a subagent payload, updates that subagent as running without overriding a higher-priority main tool. |
 | `PostToolUse` | `*` | If the payload matches the main active `turnId`, returns main to `thinking` and preserves the timer. During a subagent payload, keeps that subagent running. |
 | `PreCompact` | none | If the payload matches the main active `turnId`, updates main `compacting`, `Compacting`, and preserves the active timer. During a subagent payload, keeps that subagent running. |

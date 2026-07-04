@@ -13,7 +13,7 @@ const statePath = path.join(stateDir, `${sessionId}.json`);
 const labels = {
   idle: "",
   done: "Done",
-  thinking: "Thinking...",
+  thinking: "Thinking",
   tool: "Running command",
   compacting: "Compacting",
   permission: "Awaiting permission",
@@ -71,10 +71,10 @@ function writeState(state, label) {
 async function demo() {
   const delayMs = Number(process.env.CODEX_STATUSBAR_DEMO_DELAY_MS || 1600);
   const sequence = [
-    ["thinking", "Thinking..."],
+    ["thinking", "Thinking"],
     ["tool", "Running command"],
     ["compacting", "Compacting"],
-    ["thinking", "Thinking..."],
+    ["thinking", "Thinking"],
     ["permission", "Awaiting permission"],
     ["tool", "Editing"],
     ["done", "Done"],

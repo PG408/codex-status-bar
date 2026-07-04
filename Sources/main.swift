@@ -226,7 +226,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     let defaultThreadMetadataPath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/state_5.sqlite")
     let pollInterval: TimeInterval = 0.4
     let autoExitDelay: TimeInterval = 20
-    let defaultThreadName = "无法获取 thread 名称"
+    let defaultThreadName = "Unknown"
 
     var stateDir: String {
         ProcessInfo.processInfo.environment["CODEX_STATUSBAR_STATE_DIR"] ?? defaultStateDir
@@ -768,7 +768,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         switch state {
         case .thinking:
             logRender(state: .thinking, label: label, startedAt: startedAt)
-            render(state: .thinking, label: label.isEmpty ? "Thinking..." : label, startedAt: startedAt)
+            render(state: .thinking, label: label.isEmpty ? "Thinking" : label, startedAt: startedAt)
         case .tool:
             logRender(state: .tool, label: label, startedAt: startedAt)
             render(state: .tool, label: label.isEmpty ? "Using tool" : label, startedAt: startedAt, iconWarning: iconWarning)
@@ -1293,7 +1293,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     func statusLabel(for session: Session) -> String {
         switch session.effectiveState {
         case .thinking:
-            return session.label.isEmpty ? "Thinking..." : session.label
+            return session.label.isEmpty ? "Thinking" : session.label
         case .tool:
             return session.label.isEmpty ? "Using tool" : session.label
         case .compacting:

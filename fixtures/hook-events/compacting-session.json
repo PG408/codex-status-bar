@@ -13,7 +13,7 @@
         "sessions": {
           "compact": {
             "state": "thinking",
-            "label": "Thinking...",
+            "label": "Thinking",
             "sessionId": "compact",
             "turnId": "compact-turn",
             "project": "compact-project",
@@ -54,7 +54,7 @@
         "sessions": {
           "compact": {
             "state": "thinking",
-            "label": "Thinking...",
+            "label": "Thinking",
             "turnId": "compact-turn",
             "started": true
           }
