@@ -2,11 +2,12 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { ensureStatusBarRunning } = require("./lib/hook-manager");
+const { ensureStatusBarRunning, parseAppPathArg } = require("./lib/hook-manager");
 const { latestThreadName } = require("./lib/session-index");
 const { resolveSessionSurface } = require("./lib/session-surface");
 
 const event = process.argv[2] || "unknown";
+const appPath = parseAppPathArg();
 const home = os.homedir();
 const dir = process.env.CODEX_STATUSBAR_DIR || path.join(home, ".codex", "statusbar");
 const stateDir = path.join(dir, "state.d");
@@ -88,7 +89,7 @@ function run() {
       startedAt: 0,
       ts: now,
     });
-    ensureStatusBarRunning({ scriptDir: __dirname });
+    ensureStatusBarRunning({ scriptDir: __dirname, appPath });
   } else if (event === "SessionEnd") {
     const prev = readPrevious(sessionId);
     if (prev.sessionId) {

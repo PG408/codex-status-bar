@@ -10,6 +10,7 @@ final class SessionRowView: NSView {
     private let highlightView = NSVisualEffectView()
     private let rowH: CGFloat = 24
     private let timerW: CGFloat = 74
+    private let maxNameW: CGFloat = 230
     private let nameX: CGFloat = 30
     private let textY: CGFloat = 6
     private var hovered = false
@@ -79,10 +80,10 @@ final class SessionRowView: NSView {
                                       y: textY,
                                       width: timerW,
                                       height: 16)
-            nameField.frame.size.width = max(70, timerField.frame.minX - nameField.frame.minX - 8)
+            nameField.frame.size.width = min(maxNameW, max(70, timerField.frame.minX - nameField.frame.minX - 8))
         } else {
             timerField.isHidden = true
-            nameField.frame.size.width = max(120, badgeLeft - nameField.frame.minX - 8)
+            nameField.frame.size.width = min(maxNameW, max(120, badgeLeft - nameField.frame.minX - 8))
         }
     }
 
@@ -925,7 +926,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     func configureSessionRow(_ row: SessionRowView, _ session: Session) {
         let tag = surfaceTag(for: session)
         let running = sessionBadgeIsRunning(session)
-        row.configure(name: truncated(sessionName(for: session), max: 24, keep: 23),
+        row.configure(name: sessionName(for: session),
                       timer: sessionTimer(for: session),
                       badgeNormal: tag.isEmpty ? nil : badgeImage(tag, running: running),
                       badgeSelected: tag.isEmpty ? nil : badgeImage(tag, selected: true),
@@ -1002,10 +1003,6 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
         image.isTemplate = true
         return image
-    }
-
-    func truncated(_ value: String, max: Int, keep: Int) -> String {
-        value.count > max ? String(value.prefix(keep)) + "..." : value
     }
 
     func elapsed(_ seconds: Int) -> String {
@@ -1159,7 +1156,7 @@ final class StatusController: NSObject, NSMenuDelegate {
               let node = nodePathForInstaller() else { return }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: node)
-        process.arguments = [installer]
+        process.arguments = [installer, "--app-path", Bundle.main.bundlePath]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         if (try? process.run()) != nil {

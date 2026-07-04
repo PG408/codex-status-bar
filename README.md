@@ -23,7 +23,7 @@ server component.
 > Codex surfaces, and Terminal / CLI scenarios are especially likely to vary by
 > shell, terminal app, hook configuration, and Codex version.
 
-> [!INFO]
+> [!Important]
 Codex Status Bar is strongly inspired by two reference projects:
 >-  [ilyastorunn/codex-status-bar](https://github.com/ilyastorunn/codex-status-bar) provided the Codex-focused prototype and installation direction.
 > - [m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar) provided the mature local-file plus macOS menu-bar architecture.
@@ -92,9 +92,7 @@ After launching the app, install or repair Codex hooks from the repository:
 node scripts/install-codex-statusbar.js
 ```
 
-Start a new Codex session, or send a new prompt in an existing session after
-hooks are trusted. Codex may require you to review command hooks through
-`/hooks` before they run.
+Then complete the first-run hook authorization step below.
 
 ### Option B - Build from source
 
@@ -108,9 +106,13 @@ open -g build/CodexStatusBar.app
 node scripts/install-codex-statusbar.js
 ```
 
-Start a new Codex session, or send a new prompt in an existing session after
-hooks are trusted. Codex may require you to review command hooks through
-`/hooks` before they run.
+Then complete the first-run hook authorization step below.
+
+### First-run hook authorization
+
+After installing or updating, open Codex and approve the Codex Status Bar hooks
+Then start a new Codex session, or send a new prompt in an existing session, so
+status updates can begin.
 
 You can also create a local unsigned DMG:
 
@@ -161,16 +163,6 @@ common troubleshooting steps, and uninstall instructions.
 Codex Status Bar is local-first and has no server component. See
 [Privacy](PRIVACY.md) for the full local data and network statement.
 
-## Acknowledgements
-
-Codex Status Bar is strongly inspired by two reference projects:
-
-- [ilyastorunn/codex-status-bar](https://github.com/ilyastorunn/codex-status-bar)
-  provided the Codex-focused prototype and installation direction.
-- [m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar)
-  provided the mature local-file plus macOS menu-bar architecture.
-
-**[See acknowledgements ->](ACKNOWLEDGEMENTS.md)**
 
 ## Trademark / Not Affiliated
 

@@ -79,12 +79,38 @@ run("resolveScriptPaths supports bundled resources", () => {
   }
 });
 
+run("resolveScriptPaths prefers explicit app path resources", () => {
+  const root = makeTempDir();
+  try {
+    const repoResources = path.join(root, "repo", "scripts");
+    const appResources = path.join(root, "CodexStatusBar.app", "Contents", "Resources");
+    fs.mkdirSync(repoResources, { recursive: true });
+    fs.mkdirSync(appResources, { recursive: true });
+    fs.writeFileSync(path.join(repoResources, "codex-status-writer.js"), "");
+    fs.writeFileSync(path.join(appResources, "codex-status-writer.js"), "");
+    fs.writeFileSync(path.join(appResources, "codex-lifecycle-writer.js"), "");
+    fs.writeFileSync(path.join(appResources, "install-codex-statusbar.js"), "");
+
+    const paths = resolveScriptPaths({
+      scriptDir: repoResources,
+      repoRoot: path.join(root, "repo"),
+      appPath: path.join(root, "CodexStatusBar.app"),
+    });
+    assert.equal(paths.writerPath, path.join(appResources, "codex-status-writer.js"));
+    assert.equal(paths.lifecyclePath, path.join(appResources, "codex-lifecycle-writer.js"));
+    assert.equal(paths.installPath, path.join(appResources, "install-codex-statusbar.js"));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 run("desiredHookSettings installs all Codex Status Bar events", () => {
   const settings = desiredHookSettings({
     existing: { hooks: {} },
     nodePath: "/opt/homebrew/bin/node",
     writerPath: "/app/codex-status-writer.js",
     lifecyclePath: "/app/codex-lifecycle-writer.js",
+    appPath: "/Applications/CodexStatusBar.app",
   });
   for (const spec of EVENT_SPECS) {
     assert.ok(settings.hooks[spec.event], `missing ${spec.event}`);
@@ -94,6 +120,7 @@ run("desiredHookSettings installs all Codex Status Bar events", () => {
   assert.ok(commands.some((command) => command.includes("codex-status-writer.js") && command.includes("PreToolUse")));
   assert.ok(commands.some((command) => command.includes("codex-status-writer.js") && command.includes("PreCompact")));
   assert.ok(commands.some((command) => command.includes("codex-status-writer.js") && command.includes("PostCompact")));
+  assert.ok(commands.every((command) => command.includes("--app-path") && command.includes("/Applications/CodexStatusBar.app")));
 });
 
 run("repairHooks updates stale own hooks and preserves unrelated hooks", () => {
@@ -109,10 +136,12 @@ run("repairHooks updates stale own hooks and preserves unrelated hooks", () => {
     nodePath: "/new/node",
     writerPath: "/new/codex-status-writer.js",
     lifecyclePath: "/new/codex-lifecycle-writer.js",
+    appPath: "/Applications/CodexStatusBar.app",
   });
   const commands = commandPaths(repaired);
   assert.ok(commands.includes("echo user-hook"));
   assert.ok(commands.some((command) => command.includes("\"/new/node\"") && command.includes("/new/codex-status-writer.js")));
+  assert.ok(commands.some((command) => command.includes("--app-path") && command.includes("/Applications/CodexStatusBar.app")));
   assert.ok(!commands.some((command) => command.includes("/old/codex-status-writer.js")));
 });
 
@@ -236,7 +265,7 @@ run("ensureStatusBarRunning skips open when status bar process already exists", 
   }
 });
 
-run("ensureStatusBarRunning ignores same-name process from a different app path", () => {
+run("ensureStatusBarRunning skips open when any status bar process exists", () => {
   const dir = makeTempDir();
   try {
     const appPath = path.join(dir, "Current", "CodexStatusBar.app");
@@ -251,11 +280,10 @@ run("ensureStatusBarRunning ignores same-name process from a different app path"
     const launched = ensureStatusBarRunning({
       appPath,
       openBin,
-      processRunning: () => true,
       runningProcessCommands: () => [otherPath],
     });
-    assert.equal(launched, true);
-    assert.ok(fs.readFileSync(openLog, "utf8").includes(appPath));
+    assert.equal(launched, false);
+    assert.equal(fs.existsSync(openLog), false);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

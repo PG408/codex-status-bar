@@ -24,6 +24,7 @@ const checks = [
   ["Swift refreshes open menu rows", swift.includes("refreshOpenMenuRows")],
   ["Swift groups session menu rows by project", swift.includes("SessionGroupHeaderView") && swift.includes("groupedMenuSessions") && swift.includes("sessionGroupName")],
   ["Swift displays thread names in session rows", swift.includes("threadName") && swift.includes("defaultThreadName") && swift.includes("session.threadName")],
+  ["Swift lets session row width drive thread name truncation", swift.includes("lineBreakMode = .byTruncatingTail") && swift.includes("row.configure(name: sessionName(for: session)") && swift.includes("maxNameW") && !swift.includes("truncated(sessionName(for: session)")],
   ["Swift reads Codex thread metadata overlay", swift.includes("ThreadMetadataStore") && swift.includes("refreshThreadMetadata")],
   ["Swift hides archived threads from lead and menu", swift.includes("isArchivedThread") && swift.includes("displaySessions") && swift.includes("filter { !isArchivedThread($0) }")],
   ["Swift settles archived active sessions to done", swift.includes("applyArchivedThreadOverlay") && swift.includes("markArchivedSessionDone")],

@@ -82,9 +82,27 @@ function findNode(options = {}) {
   return options.currentExecPath || process.execPath;
 }
 
+function parseAppPathArg(argv = process.argv) {
+  const index = argv.indexOf("--app-path");
+  if (index >= 0 && argv[index + 1]) return argv[index + 1];
+  return "";
+}
+
+function resourcesPathForApp(appPath) {
+  return path.join(appPath, "Contents", "Resources");
+}
+
+function firstExistingPath(paths) {
+  return paths.find((candidate) => candidate && fs.existsSync(candidate)) || paths[paths.length - 1];
+}
+
 function resolveScriptPaths(options = {}) {
   const scriptDir = options.scriptDir || __dirname;
   const repoRoot = options.repoRoot || path.resolve(scriptDir, "..");
+  const appResourcesDir = options.appPath ? resourcesPathForApp(options.appPath) : "";
+  const appWriterPath = appResourcesDir ? path.join(appResourcesDir, "codex-status-writer.js") : "";
+  const appLifecyclePath = appResourcesDir ? path.join(appResourcesDir, "codex-lifecycle-writer.js") : "";
+  const appInstallPath = appResourcesDir ? path.join(appResourcesDir, "install-codex-statusbar.js") : "";
   const bundledWriterPath = path.join(scriptDir, "codex-status-writer.js");
   const bundledLifecyclePath = path.join(scriptDir, "codex-lifecycle-writer.js");
   const bundledInstallPath = path.join(scriptDir, "install-codex-statusbar.js");
@@ -93,9 +111,9 @@ function resolveScriptPaths(options = {}) {
   const repoInstallPath = path.join(repoRoot, "scripts", "install-codex-statusbar.js");
 
   return {
-    writerPath: fs.existsSync(bundledWriterPath) ? bundledWriterPath : repoWriterPath,
-    lifecyclePath: fs.existsSync(bundledLifecyclePath) ? bundledLifecyclePath : repoLifecyclePath,
-    installPath: fs.existsSync(bundledInstallPath) ? bundledInstallPath : repoInstallPath,
+    writerPath: firstExistingPath([appWriterPath, bundledWriterPath, repoWriterPath]),
+    lifecyclePath: firstExistingPath([appLifecyclePath, bundledLifecyclePath, repoLifecyclePath]),
+    installPath: firstExistingPath([appInstallPath, bundledInstallPath, repoInstallPath]),
   };
 }
 
@@ -117,11 +135,12 @@ function removeOwnHooks(settings) {
   return cleaned;
 }
 
-function hookCommand(nodePath, commandPath, event) {
-  return `${quote(nodePath)} ${quote(commandPath)} ${event}`;
+function hookCommand(nodePath, commandPath, event, appPath = "") {
+  const appPathArgs = appPath ? ` --app-path ${quote(appPath)}` : "";
+  return `${quote(nodePath)} ${quote(commandPath)} ${event}${appPathArgs}`;
 }
 
-function desiredHookSettings({ existing, nodePath, writerPath, lifecyclePath }) {
+function desiredHookSettings({ existing, nodePath, writerPath, lifecyclePath, appPath }) {
   const settings = removeOwnHooks(existing || { hooks: {} });
   settings.hooks = settings.hooks || {};
 
@@ -129,7 +148,7 @@ function desiredHookSettings({ existing, nodePath, writerPath, lifecyclePath }) 
     const commandPath = spec.writer === "lifecycle" ? lifecyclePath : writerPath;
     const hook = {
       type: "command",
-      command: hookCommand(nodePath, commandPath, spec.event),
+      command: hookCommand(nodePath, commandPath, spec.event, appPath),
       timeout: 5,
       statusMessage: `Codex Status Bar: ${spec.event}`,
     };
@@ -204,16 +223,6 @@ function traceLaunch(event) {
   } catch {}
 }
 
-function expectedExecutablePath(appPath, processName) {
-  return path.join(appPath, "Contents", "MacOS", processName);
-}
-
-function commandMatchesAppPath(command, appPath, processName) {
-  if (!command || !appPath) return false;
-  const expected = expectedExecutablePath(appPath, processName);
-  return String(command).includes(expected) || String(command).includes(appPath);
-}
-
 function runningProcessCommands(processName, timeoutMs) {
   try {
     const output = cp.execFileSync("/usr/bin/pgrep", ["-x", processName], {
@@ -244,27 +253,14 @@ function runningProcessCommands(processName, timeoutMs) {
 function statusBarProcessRunning(options = {}) {
   const processName = options.processName || process.env.CODEX_STATUSBAR_PROCESS_NAME || "CodexStatusBar";
   const timeoutMs = Number(options.timeoutMs || 1000);
-  const appPath = inferAppPath(options);
 
   if (typeof options.runningProcessCommands === "function") {
-    return options.runningProcessCommands().some((command) => commandMatchesAppPath(command, appPath, processName));
+    return options.runningProcessCommands().length > 0;
   }
   if (typeof options.processRunning === "function") {
     return Boolean(options.processRunning());
   }
-  if (appPath) {
-    return runningProcessCommands(processName, timeoutMs)
-      .some((command) => commandMatchesAppPath(command, appPath, processName));
-  }
-  try {
-    cp.execFileSync("/usr/bin/pgrep", ["-x", processName], {
-      stdio: "ignore",
-      timeout: timeoutMs,
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  return runningProcessCommands(processName, timeoutMs).length > 0;
 }
 
 function ensureStatusBarRunning(options = {}) {
@@ -304,6 +300,7 @@ module.exports = {
   hookCommand,
   inferAppPath,
   needsRepair,
+  parseAppPathArg,
   readHooks,
   removeOwnHooks,
   repairHooks,

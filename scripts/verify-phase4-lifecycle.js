@@ -100,7 +100,7 @@ function commandPaths(settings) {
 function fakeOpenBin(dir) {
   const openLog = path.join(dir, "open.log");
   const openBin = path.join(dir, "open");
-  fs.writeFileSync(openBin, `#!/bin/sh\necho "$@" >> "${openLog}"\n`);
+  fs.writeFileSync(openBin, `#!/bin/sh\necho "$@" >> "${openLog}"\nexit 0\n`);
   fs.chmodSync(openBin, 0o755);
   return { openBin, openLog };
 }
@@ -198,7 +198,7 @@ run("launcher does not reopen when the same app bundle is already running", () =
   const openLog = path.join(dir, "open.log");
   const openBin = path.join(dir, "open");
   fs.mkdirSync(path.join(fakeApp, "Contents", "MacOS"), { recursive: true });
-  fs.writeFileSync(openBin, `#!/bin/sh\necho "$@" >> "${openLog}"\n`);
+  fs.writeFileSync(openBin, `#!/bin/sh\necho "$@" >> "${openLog}"\nexit 0\n`);
   fs.chmodSync(openBin, 0o755);
 
   const { ensureStatusBarRunning } = require("./lib/hook-manager");

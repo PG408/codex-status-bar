@@ -4,6 +4,7 @@ const os = require("os");
 const path = require("path");
 const {
   findNode,
+  parseAppPathArg,
   readHooks,
   repairHooks,
   resolveScriptPaths,
@@ -15,8 +16,9 @@ const repoRoot = path.resolve(__dirname, "..");
 const hooksPath = path.join(home, ".codex", "hooks.json");
 
 function main() {
+  const appPath = parseAppPathArg();
   const nodePath = findNode({ currentExecPath: process.execPath });
-  const { writerPath, lifecyclePath } = resolveScriptPaths({ scriptDir: __dirname, repoRoot });
+  const { writerPath, lifecyclePath } = resolveScriptPaths({ scriptDir: __dirname, repoRoot, appPath });
 
   if (!fs.existsSync(writerPath)) {
     throw new Error(`Writer not found: ${writerPath}`);
@@ -33,10 +35,11 @@ function main() {
     fs.copyFileSync(hooksPath, backupPath);
   }
 
-  const repaired = repairHooks(settings, { nodePath, writerPath, lifecyclePath });
+  const repaired = repairHooks(settings, { nodePath, writerPath, lifecyclePath, appPath });
   writeHooks(hooksPath, repaired);
   console.log(`Installed Codex Status Bar hooks into ${hooksPath}`);
   console.log(`Node: ${nodePath}`);
+  if (appPath) console.log(`App: ${appPath}`);
   console.log(`Backup: ${backupPath}`);
   console.log(`State directory: ${path.join(home, ".codex", "statusbar", "state.d")}`);
 }
