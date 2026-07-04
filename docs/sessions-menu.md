@@ -50,6 +50,11 @@ Hover uses the system selection material so text, icons, and badges stay readabl
 
 This setting controls how long resting sessions remain visible in the menu. The same duration is also used as the cleanup window for completed or idle display records. If every row would be hidden before cleanup runs, the most relevant remaining session is still shown so the Sessions section is not empty while state exists.
 
+Side Chat rows use a shorter menu-only fallback: after a Side Chat has been
+resting for 5 minutes, it is hidden from the Sessions menu but its state file is
+kept. If the same Side Chat receives another hook event later, its timestamp and
+state update and the row becomes visible again.
+
 ## Click Focus
 
 Clicking a session row attempts to focus the corresponding surface:

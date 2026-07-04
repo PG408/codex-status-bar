@@ -227,6 +227,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     let pollInterval: TimeInterval = 0.4
     let autoExitDelay: TimeInterval = 20
     let defaultThreadName = "Unknown"
+    let sideChatRestingMenuHideAfter: TimeInterval = 5 * 60
 
     var stateDir: String {
         ProcessInfo.processInfo.environment["CODEX_STATUSBAR_STATE_DIR"] ?? defaultStateDir
@@ -866,9 +867,30 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         let filtered = ordered.filter { session in
             let resting = priority(of: session.effectiveState) == 0
+            if isHiddenSideChatMenuSession(session, now: now) {
+                return false
+            }
             return !(hideIdleAfter > 0 && resting && now - session.ts > hideIdleAfter)
         }
-        return filtered.isEmpty ? Array(ordered.prefix(1)) : filtered
+        if filtered.isEmpty, let fallback = ordered.first(where: { !isHiddenSideChatMenuSession($0, now: now) }) {
+            return [fallback]
+        }
+        return filtered
+    }
+
+    func isHiddenSideChatMenuSession(_ session: Session, now: Double) -> Bool {
+        isSideChatSession(session) &&
+            isRestingMenuState(session) &&
+            session.ts > 0 &&
+            now - session.ts > sideChatRestingMenuHideAfter
+    }
+
+    func isSideChatSession(_ session: Session) -> Bool {
+        session.threadName.trimmingCharacters(in: .whitespacesAndNewlines) == "Side Chat"
+    }
+
+    func isRestingMenuState(_ session: Session) -> Bool {
+        priority(of: session.effectiveState) == 0
     }
 
     func groupedMenuSessions(_ visible: [Session]) -> [MenuSessionGroup] {

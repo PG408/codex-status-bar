@@ -28,6 +28,7 @@ const checks = [
   ["Swift hides archived threads from lead and menu", swift.includes("isArchivedThread") && swift.includes("displaySessions") && swift.includes("filter { !isArchivedThread($0) }")],
   ["Swift settles archived active sessions to done", swift.includes("applyArchivedThreadOverlay") && swift.includes("markArchivedSessionDone")],
   ["Swift supports Hide idle sessions", swift.includes("Hide idle sessions") && swift.includes("hideIdleAfter")],
+  ["Swift hides resting Side Chat rows after five minutes without deleting state", swift.includes("sideChatRestingMenuHideAfter") && swift.includes("5 * 60") && swift.includes("isHiddenSideChatMenuSession") && swift.includes('== "Side Chat"')],
   ["Swift supports session click focus", swift.includes("openSession(") && swift.includes("openCodex")],
   ["Swift supports URL focus target fallback", swift.includes('case "url"') && swift.includes("openURLTarget") && swift.includes("openFallbackTarget")],
   ["Swift derives Codex thread deeplink target", swift.includes("codex://threads/") && swift.includes("desktopThreadTarget")],
