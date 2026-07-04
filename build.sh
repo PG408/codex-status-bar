@@ -29,6 +29,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleDisplayName</key><string>Codex Status Bar</string>
   <key>CFBundleIdentifier</key><string>com.local.codexstatusbar</string>
   <key>CFBundleExecutable</key><string>CodexStatusBar</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleVersion</key><string>0.1.0</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>CFBundlePackageType</key><string>APPL</string>
@@ -38,6 +39,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
+cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp scripts/codex-status-writer.js "$APP/Contents/Resources/codex-status-writer.js"
 cp scripts/codex-lifecycle-writer.js "$APP/Contents/Resources/codex-lifecycle-writer.js"
 cp scripts/install-codex-statusbar.js "$APP/Contents/Resources/install-codex-statusbar.js"

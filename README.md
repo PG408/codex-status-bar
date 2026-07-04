@@ -136,9 +136,12 @@ Codex Status Bar is local-first and has no server component. See
 
 ## Acknowledgements
 
-This project is adapted from the ideas explored in the two reference projects
-under `reference/`: the Codex-focused prototype and Claude Status Bar's
-local-file plus menu-bar architecture.
+Codex Status Bar is strongly inspired by two reference projects:
+
+- [ilyastorunn/codex-status-bar](https://github.com/ilyastorunn/codex-status-bar)
+  provided the Codex-focused prototype and installation direction.
+- [m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar)
+  provided the mature local-file plus macOS menu-bar architecture.
 
 **[See acknowledgements ->](ACKNOWLEDGEMENTS.md)**
 
