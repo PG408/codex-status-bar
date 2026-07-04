@@ -3,6 +3,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { ensureStatusBarRunning } = require("./lib/hook-manager");
+const { latestThreadName } = require("./lib/session-index");
 const { resolveSessionSurface } = require("./lib/session-surface");
 
 const event = process.argv[2] || "unknown";
@@ -44,6 +45,14 @@ function statePathFor(sessionId) {
   return path.join(stateDir, `${safeId(sessionId)}.json`);
 }
 
+function readPrevious(sessionId) {
+  try {
+    return JSON.parse(fs.readFileSync(statePathFor(sessionId), "utf8"));
+  } catch {
+    return {};
+  }
+}
+
 function run() {
   if (done) return;
   done = true;
@@ -66,6 +75,7 @@ function run() {
       state: "idle",
       label: "",
       tool: "",
+      threadName: latestThreadName(sessionId),
       project: basename(payload.cwd || payload.working_directory || payload.current_working_directory),
       sessionId,
       turnId: "",
@@ -80,7 +90,30 @@ function run() {
     });
     ensureStatusBarRunning({ scriptDir: __dirname });
   } else if (event === "SessionEnd") {
-    fs.rmSync(statePath, { force: true });
+    const prev = readPrevious(sessionId);
+    if (prev.sessionId) {
+      const now = Date.now() / 1000;
+      const pid = Number(prev.pid || process.ppid || 0);
+      const surface = resolveSessionSurface(payload, prev, process.env, { pid, sessionId });
+      writeJsonAtomic(statePath, {
+        ...prev,
+        state: "done",
+        label: "Done",
+        tool: "",
+        threadName: latestThreadName(sessionId),
+        project: basename(payload.cwd || payload.working_directory || payload.current_working_directory) || prev.project || "",
+        sessionId,
+        turnId: "",
+        pid,
+        entrypoint: surface.entrypoint,
+        entrypointSource: surface.entrypointSource,
+        termProgram: surface.termProgram,
+        focusTarget: surface.focusTarget,
+        started: false,
+        startedAt: 0,
+        ts: now,
+      });
+    }
   }
 
   process.exit(0);

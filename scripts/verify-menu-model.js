@@ -12,6 +12,7 @@ const docs = fs.existsSync("docs/sessions-menu.md")
   ? fs.readFileSync("docs/sessions-menu.md", "utf8")
   : "";
 const writer = fs.readFileSync("scripts/codex-status-writer.js", "utf8");
+const lifecycleWriter = fs.readFileSync("scripts/codex-lifecycle-writer.js", "utf8");
 
 const checks = [
   ["Swift defines SessionRowView", swift.includes("final class SessionRowView")],
@@ -21,6 +22,11 @@ const checks = [
   ["Swift has Diagnostics menu section", swift.includes('header("Diagnostics")')],
   ["Swift stores open menu session rows", swift.includes("sessionMenuItems")],
   ["Swift refreshes open menu rows", swift.includes("refreshOpenMenuRows")],
+  ["Swift groups session menu rows by project", swift.includes("SessionGroupHeaderView") && swift.includes("groupedMenuSessions") && swift.includes("sessionGroupName")],
+  ["Swift displays thread names in session rows", swift.includes("threadName") && swift.includes("defaultThreadName") && swift.includes("session.threadName")],
+  ["Swift reads Codex thread metadata overlay", swift.includes("ThreadMetadataStore") && swift.includes("refreshThreadMetadata")],
+  ["Swift hides archived threads from lead and menu", swift.includes("isArchivedThread") && swift.includes("displaySessions") && swift.includes("filter { !isArchivedThread($0) }")],
+  ["Swift settles archived active sessions to done", swift.includes("applyArchivedThreadOverlay") && swift.includes("markArchivedSessionDone")],
   ["Swift supports Hide idle sessions", swift.includes("Hide idle sessions") && swift.includes("hideIdleAfter")],
   ["Swift supports session click focus", swift.includes("openSession(") && swift.includes("openCodex")],
   ["Swift supports URL focus target fallback", swift.includes('case "url"') && swift.includes("openURLTarget") && swift.includes("openFallbackTarget")],
@@ -45,6 +51,7 @@ const checks = [
   ["Swift uses Codex process fallback consistently for desktop liveness", swift.includes("func isDesktopSession") && swift.includes("return isCodexDesktopProcess(pid: session.pid)")],
   ["Swift treats compacting and tools as active priority", swift.includes("case .thinking, .tool, .compacting")],
   ["Writer preserves existing tool timer semantics", writer.includes("if (!startedAt) startedAt = now") && writer.includes("if (!startedAt) startedAt = afterWaitNow")],
+  ["Writers persist session_index thread names", writer.includes("latestThreadName(sessionId)") && lifecycleWriter.includes("latestThreadName(sessionId)")],
   ["Writer preserves transcript path for interrupt recovery", writer.includes("transcript_path") && writer.includes("prev.transcript")],
   ["Swift uses transcript turn_aborted marker for active-state recovery", swift.includes("transcriptShowsUserInterrupt") && swift.includes("turn_aborted")],
   ["Swift avoids high-frequency status item animation", !swift.includes("Timer(timeInterval: 0.12")],

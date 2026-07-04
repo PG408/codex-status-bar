@@ -14,7 +14,6 @@ struct SessionStateRuleInput {
 enum SessionStateRules {
     static let staleAfter: TimeInterval = 15 * 60
     static let longRunningToolAfter: TimeInterval = 3 * 60
-    static let completedSessionPruneAfter: TimeInterval = 5 * 60
     static let idleSessionPruneAfter: TimeInterval = 30 * 60
     static let orphanPruneAfter: TimeInterval = 2 * 60 * 60
 
@@ -59,22 +58,25 @@ enum SessionStateRules {
         isDesktop: Bool,
         codexRunning: Bool,
         ts: Double,
-        now: Double
+        now: Double,
+        restingSessionPruneAfter: TimeInterval = idleSessionPruneAfter
     ) -> Bool {
+        let isResting = ["idle", "done", "waiting"].contains(effectiveState)
+
         if isDesktop {
             if !codexRunning {
                 return true
             }
-            if ts > 0, state == "done", now - ts > completedSessionPruneAfter {
-                return true
-            }
-            if ts > 0, ["idle", "waiting"].contains(effectiveState), now - ts > idleSessionPruneAfter {
+            if restingSessionPruneAfter > 0, ts > 0, isResting, now - ts > restingSessionPruneAfter {
                 return true
             }
             return false
         }
 
         if pid > 0, !pidAlive {
+            if isResting {
+                return restingSessionPruneAfter > 0 && ts > 0 && now - ts > restingSessionPruneAfter
+            }
             return true
         }
         if pid == 0, ts > 0, now - ts > orphanPruneAfter {

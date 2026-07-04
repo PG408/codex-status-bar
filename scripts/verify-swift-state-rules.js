@@ -30,7 +30,7 @@ func assertBool(_ actual: Bool, _ expected: Bool, _ label: String) {
 @main
 struct VerifyStateRules {
     static func main() {
-        let now = 1_000.0
+        let now = 10_000.0
         let interruptedLine = #"{"timestamp":"2026-06-30T05:17:42.067Z","type":"event_msg","payload":{"type":"turn_aborted","turn_id":"turn-1","reason":"interrupted","completed_at":1782796662,"duration_ms":3398}}"#
         let taskStartedLine = #"{"timestamp":"2026-06-30T05:18:05.174Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-2","started_at":1782796685}}"#
 
@@ -169,7 +169,18 @@ struct VerifyStateRules {
             codexRunning: true,
             ts: now - 301,
             now: now
-        ), true, "completed desktop session is pruned")
+        ), false, "completed desktop session is retained for the menu duration")
+
+        assertBool(SessionStateRules.shouldRemoveSession(
+            state: "done",
+            effectiveState: "done",
+            pid: 123,
+            pidAlive: false,
+            isDesktop: true,
+            codexRunning: true,
+            ts: now - 1801,
+            now: now
+        ), true, "completed desktop session is pruned after the menu duration")
 
         assertBool(SessionStateRules.shouldRemoveSession(
             state: "tool",
@@ -181,6 +192,17 @@ struct VerifyStateRules {
             ts: now - 60,
             now: now
         ), true, "CLI session with dead pid is removed")
+
+        assertBool(SessionStateRules.shouldRemoveSession(
+            state: "done",
+            effectiveState: "done",
+            pid: 123,
+            pidAlive: false,
+            isDesktop: false,
+            codexRunning: false,
+            ts: now - 301,
+            now: now
+        ), false, "completed CLI session with dead pid is retained for the menu duration")
 
         assertBool(SessionStateRules.shouldRemoveSession(
             state: "tool",

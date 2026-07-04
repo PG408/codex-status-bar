@@ -4,17 +4,15 @@ import Darwin
 final class SessionRowView: NSView {
     let id: String
     var onClick: (() -> Void)?
-    private let iconView = NSImageView()
     private let nameField = NSTextField(labelWithString: "")
     private let timerField = NSTextField(labelWithString: "")
     private let badgeView = NSImageView()
     private let highlightView = NSVisualEffectView()
-    private let pad: CGFloat = 14
-    private let iconSize: CGFloat = 16
     private let rowH: CGFloat = 24
     private let timerW: CGFloat = 74
+    private let nameX: CGFloat = 30
+    private let textY: CGFloat = 6
     private var hovered = false
-    private var iconBaseTint: NSColor?
     private var badgeNormal: NSImage?
     private var badgeSelected: NSImage?
 
@@ -31,15 +29,10 @@ final class SessionRowView: NSView {
         highlightView.isHidden = true
         addSubview(highlightView)
 
-        iconView.frame = NSRect(x: pad, y: (rowH - iconSize) / 2, width: iconSize, height: iconSize)
-        iconView.imageScaling = .scaleProportionallyUpOrDown
-        iconView.autoresizingMask = [.maxXMargin]
-        addSubview(iconView)
-
         nameField.font = .menuFont(ofSize: 0)
         nameField.textColor = .labelColor
         nameField.lineBreakMode = .byTruncatingTail
-        nameField.frame = NSRect(x: pad + iconSize + 8, y: (rowH - 16) / 2, width: 150, height: 16)
+        nameField.frame = NSRect(x: nameX, y: textY, width: 150, height: 16)
         nameField.autoresizingMask = [.maxXMargin]
         addSubview(nameField)
 
@@ -58,16 +51,9 @@ final class SessionRowView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func setIcon(_ image: NSImage?) {
-        iconView.image = image
-    }
-
-    func configure(icon: NSImage?, iconTint: NSColor?, name: String, timer: String?,
-                   badgeNormal: NSImage?, badgeSelected: NSImage?, badgeInset: CGFloat, timerGap: CGFloat) {
+    func configure(name: String, timer: String?, badgeNormal: NSImage?, badgeSelected: NSImage?,
+                   badgeInset: CGFloat, timerGap: CGFloat) {
         let w = bounds.width
-        iconView.image = icon
-        iconBaseTint = iconTint
-        iconView.contentTintColor = hovered ? .white : iconTint
         nameField.stringValue = name
 
         self.badgeNormal = badgeNormal
@@ -90,7 +76,7 @@ final class SessionRowView: NSView {
             timerField.isHidden = false
             timerField.stringValue = timer
             timerField.frame = NSRect(x: badgeLeft - timerGap - timerW,
-                                      y: (rowH - 16) / 2,
+                                      y: textY,
                                       width: timerW,
                                       height: 16)
             nameField.frame.size.width = max(70, timerField.frame.minX - nameField.frame.minX - 8)
@@ -119,7 +105,6 @@ final class SessionRowView: NSView {
         highlightView.isHidden = !value
         nameField.textColor = value ? .white : .labelColor
         timerField.textColor = value ? .white : .secondaryLabelColor
-        iconView.contentTintColor = value ? .white : iconBaseTint
         if !badgeView.isHidden {
             badgeView.image = value ? badgeSelected : badgeNormal
         }
@@ -132,6 +117,78 @@ final class SessionRowView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         onClick?()
+    }
+}
+
+final class SessionGroupHeaderView: NSView {
+    private let titleField = NSTextField(labelWithString: "")
+    private let countField = NSTextField(labelWithString: "")
+    private let rowH: CGFloat = 14
+    private let titleX: CGFloat = 22
+    private let rightPad: CGFloat = 14
+
+    init(title: String, count: Int, width: CGFloat) {
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: rowH))
+        autoresizingMask = [.width]
+
+        titleField.stringValue = title
+        titleField.font = .systemFont(ofSize: NSFont.menuFont(ofSize: 0).pointSize - 3, weight: .regular)
+        titleField.textColor = .tertiaryLabelColor
+        titleField.lineBreakMode = .byTruncatingTail
+        titleField.allowsDefaultTighteningForTruncation = false
+        addSubview(titleField)
+
+        countField.stringValue = "\(count)"
+        countField.font = NSFont.monospacedDigitSystemFont(ofSize: NSFont.menuFont(ofSize: 0).pointSize - 3, weight: .regular)
+        countField.textColor = .tertiaryLabelColor
+        countField.alignment = .right
+        addSubview(countField)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layout() {
+        super.layout()
+        let countW: CGFloat = 26
+        countField.frame = NSRect(x: bounds.width - rightPad - countW,
+                                  y: 0,
+                                  width: countW,
+                                  height: 14)
+        titleField.frame = NSRect(x: titleX,
+                                  y: 0,
+                                  width: max(80, countField.frame.minX - titleX - 8),
+                                  height: 14)
+    }
+}
+
+final class MenuSectionHeaderView: NSView {
+    private let titleField = NSTextField(labelWithString: "")
+    private let rowH: CGFloat = 24
+    private let titleX: CGFloat = 22
+
+    init(title: String, width: CGFloat) {
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: rowH))
+        autoresizingMask = [.width]
+
+        titleField.stringValue = title
+        titleField.font = .systemFont(ofSize: NSFont.menuFont(ofSize: 0).pointSize - 1, weight: .semibold)
+        titleField.textColor = .secondaryLabelColor
+        titleField.lineBreakMode = .byTruncatingTail
+        addSubview(titleField)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layout() {
+        super.layout()
+        titleField.frame = NSRect(x: titleX,
+                                  y: (rowH - 16) / 2,
+                                  width: max(80, bounds.width - titleX - 14),
+                                  height: 16)
     }
 }
 
@@ -166,8 +223,10 @@ final class StatusController: NSObject, NSMenuDelegate {
     let statusMenu = NSMenu()
     let defaultStateDir = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.d")
     let defaultLegacyStatePath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.json")
+    let defaultThreadMetadataPath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/state_5.sqlite")
     let pollInterval: TimeInterval = 0.4
     let autoExitDelay: TimeInterval = 20
+    let defaultThreadName = "无法获取 thread 名称"
 
     var stateDir: String {
         ProcessInfo.processInfo.environment["CODEX_STATUSBAR_STATE_DIR"] ?? defaultStateDir
@@ -175,6 +234,10 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     var legacyStatePath: String {
         ProcessInfo.processInfo.environment["CODEX_STATUSBAR_STATE_PATH"] ?? defaultLegacyStatePath
+    }
+
+    var threadMetadataPath: String {
+        ProcessInfo.processInfo.environment["CODEX_STATUSBAR_THREAD_DB_PATH"] ?? defaultThreadMetadataPath
     }
 
     var pollTimer: Timer?
@@ -206,6 +269,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         var state: State
         var label: String
         var tool: String
+        var threadName: String
         var project: String
         var sessionId: String
         var turnId: String
@@ -226,6 +290,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             self.state = State(rawValue: object["state"] as? String ?? "idle") ?? .idle
             self.label = object["label"] as? String ?? ""
             self.tool = object["tool"] as? String ?? ""
+            self.threadName = object["threadName"] as? String ?? ""
             self.project = object["project"] as? String ?? ""
             self.sessionId = object["sessionId"] as? String ?? id
             self.turnId = object["turnId"] as? String ?? ""
@@ -243,7 +308,14 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
     }
 
+    struct MenuSessionGroup {
+        let name: String
+        let sessions: [Session]
+    }
+
     var sessions: [String: Session] = [:]
+    var threadMetadata: [String: ThreadMetadata] = [:]
+    lazy var threadMetadataStore = ThreadMetadataStore(sqlitePath: threadMetadataPath)
     var fileMTimes: [String: Date] = [:]
     var legacyMTime: Date = .distantPast
     var menuIsOpen = false
@@ -422,11 +494,8 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func header(_ title: String) -> NSMenuItem {
-        if #available(macOS 14.0, *) {
-            return NSMenuItem.sectionHeader(title: title)
-        }
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        item.isEnabled = false
+        let item = NSMenuItem()
+        item.view = MenuSectionHeaderView(title: title, width: 310)
         return item
     }
 
@@ -438,17 +507,24 @@ final class StatusController: NSObject, NSMenuDelegate {
             empty.isEnabled = false
             menu.addItem(empty)
         } else {
-            for session in visible {
-                let row = SessionRowView(id: session.id, width: 310)
-                configureSessionRow(row, session)
-                let item = NSMenuItem()
-                item.view = row
-                row.onClick = { [weak self, weak menu] in
-                    menu?.cancelTracking()
-                    self?.openSession(session)
+            for group in groupedMenuSessions(visible) {
+                let headerView = SessionGroupHeaderView(title: group.name, count: group.sessions.count, width: 310)
+                let headerItem = NSMenuItem()
+                headerItem.view = headerView
+                menu.addItem(headerItem)
+
+                for session in group.sessions {
+                    let row = SessionRowView(id: session.id, width: 310)
+                    configureSessionRow(row, session)
+                    let item = NSMenuItem()
+                    item.view = row
+                    row.onClick = { [weak self, weak menu] in
+                        menu?.cancelTracking()
+                        self?.openSession(session)
+                    }
+                    menu.addItem(item)
+                    sessionMenuItems.append((item, session.id))
                 }
-                menu.addItem(item)
-                sessionMenuItems.append((item, session.id))
             }
         }
         menu.addItem(.separator())
@@ -528,6 +604,8 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func tick() {
         reloadSessions()
+        refreshThreadMetadata()
+        applyArchivedThreadOverlay()
         evaluate()
         evaluateAutoExit()
         if menuIsOpen {
@@ -543,6 +621,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         let files = stateFileNames()
         if files.isEmpty {
             loadLegacyStateIfNeeded()
+            threadMetadata.removeAll()
             return
         }
 
@@ -574,6 +653,75 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
     }
 
+    func refreshThreadMetadata() {
+        let ids = sessions.values.map { $0.sessionId.isEmpty ? $0.id : $0.sessionId }
+        threadMetadata = threadMetadataStore.metadata(for: ids)
+    }
+
+    func applyArchivedThreadOverlay() {
+        for session in sessions.values where isArchivedThread(session) && isActiveState(session.state) {
+            markArchivedSessionDone(session)
+        }
+    }
+
+    func isArchivedThread(_ session: Session) -> Bool {
+        let id = session.sessionId.isEmpty ? session.id : session.sessionId
+        return threadMetadata[id]?.archived == true
+    }
+
+    func isActiveState(_ state: State) -> Bool {
+        switch state {
+        case .thinking, .tool, .compacting, .permission, .waiting:
+            return true
+        case .idle, .done:
+            return false
+        }
+    }
+
+    func statePathForSession(_ id: String) -> String {
+        (stateDir as NSString).appendingPathComponent(id + ".json")
+    }
+
+    func markArchivedSessionDone(_ session: Session) {
+        guard session.id != "legacy-state" else { return }
+        let path = statePathForSession(session.id)
+        guard let data = FileManager.default.contents(atPath: path),
+              var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return
+        }
+
+        let now = Date().timeIntervalSince1970
+        object["state"] = State.done.rawValue
+        object["label"] = "Done"
+        object["tool"] = ""
+        object["turnId"] = ""
+        object["started"] = false
+        object["startedAt"] = 0
+        object["ts"] = now
+
+        guard let output = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]) else {
+            return
+        }
+
+        let tmp = path + ".\(ProcessInfo.processInfo.processIdentifier).tmp"
+        do {
+            try output.write(to: URL(fileURLWithPath: tmp), options: .atomic)
+            _ = try FileManager.default.replaceItemAt(URL(fileURLWithPath: path),
+                                                       withItemAt: URL(fileURLWithPath: tmp),
+                                                       backupItemName: nil,
+                                                       options: [])
+            var updated = Session(json: object, id: session.id)
+            updated.effectiveState = .done
+            sessions[session.id] = updated
+            if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+               let mtime = attrs[.modificationDate] as? Date {
+                fileMTimes[session.id + ".json"] = mtime
+            }
+        } catch {
+            try? FileManager.default.removeItem(atPath: tmp)
+        }
+    }
+
     func loadLegacyStateIfNeeded() {
         let fm = FileManager.default
         guard let attrs = try? fm.attributesOfItem(atPath: legacyStatePath),
@@ -598,7 +746,8 @@ final class StatusController: NSObject, NSMenuDelegate {
         refreshEffectiveSessionStates()
         cleanupDeadSessions()
 
-        guard let lead = sessions.values.max(by: { left, right in
+        let displaySessions = sessions.values.filter { !isArchivedThread($0) }
+        guard let lead = displaySessions.max(by: { left, right in
             let leftPriority = priority(of: left.effectiveState)
             let rightPriority = priority(of: right.effectiveState)
             return leftPriority == rightPriority ? left.ts < right.ts : leftPriority < rightPriority
@@ -672,6 +821,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         let now = Date().timeIntervalSince1970
         let codexRunning = codexDesktopProcessExists()
         for session in sessions.values {
+            if isArchivedThread(session) { continue }
             if shouldRemoveSession(session, now: now, codexRunning: codexRunning) {
                 removeDeadSession(session.id)
             }
@@ -689,7 +839,8 @@ final class StatusController: NSObject, NSMenuDelegate {
             isDesktop: isDesktop,
             codexRunning: codexRunning,
             ts: session.ts,
-            now: now
+            now: now,
+            restingSessionPruneAfter: hideIdleAfter
         )
     }
 
@@ -708,7 +859,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     func visibleMenuSessions() -> [Session] {
         refreshEffectiveSessionStates()
         let now = Date().timeIntervalSince1970
-        let ordered = sessions.values.sorted { left, right in
+        let ordered = sessions.values.filter { !isArchivedThread($0) }.sorted { left, right in
             let leftPriority = priority(of: left.effectiveState)
             let rightPriority = priority(of: right.effectiveState)
             return leftPriority == rightPriority ? left.ts > right.ts : leftPriority > rightPriority
@@ -721,6 +872,27 @@ final class StatusController: NSObject, NSMenuDelegate {
         return filtered.isEmpty ? Array(ordered.prefix(1)) : filtered
     }
 
+    func groupedMenuSessions(_ visible: [Session]) -> [MenuSessionGroup] {
+        var order: [String] = []
+        var grouped: [String: [Session]] = [:]
+
+        for session in visible {
+            let name = sessionGroupName(for: session)
+            if grouped[name] == nil {
+                order.append(name)
+                grouped[name] = []
+            }
+            grouped[name]?.append(session)
+        }
+
+        return order.map { MenuSessionGroup(name: $0, sessions: grouped[$0] ?? []) }
+    }
+
+    func sessionGroupName(for session: Session) -> String {
+        let project = session.project.trimmingCharacters(in: .whitespacesAndNewlines)
+        return project.isEmpty ? "Other" : project
+    }
+
     func refreshOpenMenuRows() {
         refreshEffectiveSessionStates()
         for (item, id) in sessionMenuItems {
@@ -731,18 +903,18 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func configureSessionRow(_ row: SessionRowView, _ session: Session) {
         let tag = surfaceTag(for: session)
-        row.configure(icon: sessionIcon(for: session),
-                      iconTint: sessionIconTint(for: session),
-                      name: truncated(sessionName(for: session), max: 22, keep: 21),
+        let running = sessionBadgeIsRunning(session)
+        row.configure(name: truncated(sessionName(for: session), max: 24, keep: 23),
                       timer: sessionTimer(for: session),
-                      badgeNormal: tag.isEmpty ? nil : badgeImage(tag),
+                      badgeNormal: tag.isEmpty ? nil : badgeImage(tag, running: running),
                       badgeSelected: tag.isEmpty ? nil : badgeImage(tag, selected: true),
                       badgeInset: 12,
                       timerGap: 10)
     }
 
     func sessionName(for session: Session) -> String {
-        session.project.isEmpty ? "session" : session.project
+        let threadName = session.threadName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return threadName.isEmpty ? defaultThreadName : threadName
     }
 
     func sessionTimer(for session: Session) -> String? {
@@ -756,6 +928,10 @@ final class StatusController: NSObject, NSMenuDelegate {
         SessionStateRules.isLongRunningTool(state: session.effectiveState.rawValue, ts: session.ts, now: now)
     }
 
+    func sessionBadgeIsRunning(_ session: Session) -> Bool {
+        session.effectiveState == .thinking || session.effectiveState == .tool || session.effectiveState == .compacting
+    }
+
     func surfaceTag(for session: Session) -> String {
         let target = focusTarget(for: session)
         if target.kind == "bundle" || target.kind == "url" {
@@ -767,41 +943,24 @@ final class StatusController: NSObject, NSMenuDelegate {
         return ""
     }
 
-    func sessionIcon(for session: Session) -> NSImage? {
-        switch session.effectiveState {
-        case .permission:
-            return symbolImage("exclamationmark.circle.fill", tint: amber)
-        case .tool where isLongRunningTool(session):
-            return symbolImage("progress.indicator", tint: longRunningToolIconTint) ?? symbolImage("rays", tint: longRunningToolIconTint)
-        case .thinking, .tool, .compacting:
-            return symbolImage("progress.indicator") ?? symbolImage("rays")
-        case .idle, .done, .waiting:
-            return symbolImage("chevron.right")
-        }
-    }
-
-    func sessionIconTint(for session: Session) -> NSColor? {
-        switch session.effectiveState {
-        case .permission:
-            return amber
-        case .tool where isLongRunningTool(session):
-            return longRunningToolIconTint
-        case .thinking, .tool, .compacting:
-            return .labelColor
-        case .idle, .done, .waiting:
-            return .tertiaryLabelColor
-        }
-    }
-
-    func badgeImage(_ text: String, selected: Bool = false) -> NSImage {
+    func badgeImage(_ text: String, running: Bool = false, selected: Bool = false) -> NSImage {
         let string = text as NSString
         let font = NSFont.monospacedSystemFont(ofSize: 9.5, weight: .semibold)
         let pad: CGFloat = 7
         let height: CGFloat = 15
         let dark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        let bg = selected ? NSColor.white.withAlphaComponent(0.22)
-                          : (dark ? NSColor.white : NSColor.black).withAlphaComponent(dark ? 0.14 : 0.10)
-        let fg = selected ? NSColor.white : NSColor.labelColor
+        let bg: NSColor
+        let fg: NSColor
+        if selected {
+            bg = NSColor.white.withAlphaComponent(0.22)
+            fg = .white
+        } else if running {
+            bg = .controlAccentColor
+            fg = .white
+        } else {
+            bg = (dark ? NSColor.white : NSColor.black).withAlphaComponent(dark ? 0.14 : 0.10)
+            fg = .secondaryLabelColor
+        }
         let width = ceil(string.size(withAttributes: [.font: font]).width) + pad * 2
         return NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
             bg.setFill()
@@ -1033,6 +1192,9 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func hasLiveSession() -> Bool {
         sessions.values.contains { session in
+            if isArchivedThread(session) {
+                return false
+            }
             if [.permission, .tool, .thinking, .compacting, .waiting].contains(session.effectiveState) {
                 return true
             }

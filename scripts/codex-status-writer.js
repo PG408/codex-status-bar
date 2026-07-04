@@ -3,6 +3,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { ensureStatusBarRunning } = require("./lib/hook-manager");
+const { latestThreadName } = require("./lib/session-index");
 const { resolveSessionSurface } = require("./lib/session-surface");
 
 const event = process.argv[2] || "unknown";
@@ -125,6 +126,7 @@ function stateFor(payload, prev, now, startedAt, state, label, toolName) {
     state,
     label,
     tool: toolName,
+    threadName: latestThreadName(sessionId),
     project: basename(payload.cwd || payload.working_directory || payload.current_working_directory) || prev.project || "",
     sessionId,
     turnId: incomingTurnId || prev.turnId || "",

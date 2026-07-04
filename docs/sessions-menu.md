@@ -23,12 +23,15 @@ The menu is grouped into four sections:
 
 ## Session Rows
 
+The Sessions section groups rows by `project`. A missing project is shown under `Other`. Each group header is a small secondary label aligned with the session title column and shows the number of visible sessions in that group.
+
 Each session row is a custom AppKit view with:
 
-- status icon: permission, working, or resting
-- project name, truncated before it can overlap the timer or badge
+- thread name from the latest matching `thread_name` in `~/.codex/session_index.jsonl`, truncated before it can overlap the timer or badge
 - elapsed timer for `thinking`, `tool`, and `compacting`
-- `CLI` or `APP` badge when the surface is known
+- `CLI` or `APP` badge when the surface is known; the badge uses the active color for running sessions and a muted color for resting sessions
+
+If the thread name cannot be read, the row shows `无法获取 thread 名称`.
 
 Hover uses the system selection material so text, icons, and badges stay readable in light and dark menu appearances.
 
@@ -42,7 +45,7 @@ Hover uses the system selection material so text, icons, and badges stay readabl
 - 1 hour
 - Never
 
-This setting affects only menu row visibility. It does not delete `state.d` files and does not affect lead-session aggregation. If every row would be hidden, the most relevant remaining session is still shown so the Sessions section is not empty while state exists.
+This setting controls how long resting sessions remain visible in the menu. The same duration is also used as the cleanup window for completed or idle display records. If every row would be hidden before cleanup runs, the most relevant remaining session is still shown so the Sessions section is not empty while state exists.
 
 ## Click Focus
 

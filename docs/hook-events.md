@@ -17,6 +17,7 @@ Each session file contains display metadata only:
 | `state` | One of `idle`, `done`, `thinking`, `tool`, `compacting`, `permission`, or `waiting`. |
 | `label` | Short menu bar label such as `Codex thinking`, `Running command`, or `Awaiting permission`. |
 | `tool` | Raw tool name when available. |
+| `threadName` | Latest matching `thread_name` from `~/.codex/session_index.jsonl`; defaults to `无法获取 thread 名称` when unavailable. |
 | `project` | Basename of `cwd`, `working_directory`, or `current_working_directory`. |
 | `sessionId` | Sanitized `session_id` or `sessionId`; also used as the state filename. |
 | `turnId` | Sanitized `turn_id` or `turnId` for same-session stale event protection. |
@@ -53,7 +54,7 @@ Two hook writers are installed:
 
 | Script | Events | Responsibility |
 |---|---|---|
-| `scripts/codex-lifecycle-writer.js` | `SessionStart`, `SessionEnd` | Create or delete a session file. |
+| `scripts/codex-lifecycle-writer.js` | `SessionStart`, `SessionEnd` | Create a session file or mark an existing session complete. |
 | `scripts/codex-status-writer.js` | `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `PostCompact`, `PermissionRequest`, `Stop`, `SubagentStart`, `SubagentStop` | Update the corresponding session file for visible status changes. |
 
 After a successful `SessionStart` or visible activity write, the writer asks the shared hook manager to launch `CodexStatusBar.app` if it is not already running. This is the recovery path after crash, force quit, or automatic exit.
@@ -63,7 +64,7 @@ After a successful `SessionStart` or visible activity write, the writer asks the
 | Event | Matcher | Writer behavior |
 |---|---:|---|
 | `SessionStart` | none | Creates `idle` session state with `started: false`. |
-| `SessionEnd` | none | Deletes that session's state file. |
+| `SessionEnd` | none | Marks an existing session `done`, clears active turn metadata, and lets the menu retention setting decide when it disappears. |
 | `UserPromptSubmit` | none | Writes `thinking`, `Codex thinking`, a non-zero `startedAt`, `started: true`, and the incoming `turnId`. |
 | `PreToolUse` | `*` | If the payload matches that session's active `turnId`, writes `tool` and maps the tool name to a short label. |
 | `PostToolUse` | `*` | If the payload matches that session's active `turnId`, returns to `thinking` and preserves the timer. |

@@ -51,12 +51,12 @@ Swift treats `state.d/<session_id>.json` as display state, not as permanent stor
 
 - A CLI session can use its hook parent `pid` as supporting liveness evidence.
 - A Desktop session is not considered live merely because `Codex.app` is still running.
-- A Desktop `SessionEnd` removes that session file; Codex Desktop process exit removes remaining Desktop session files as cleanup.
+- A Desktop `SessionEnd` marks that session `done`; Codex Desktop process exit removes remaining Desktop session files as cleanup.
 - A corrupt or unparsable session file is removed.
 - Old `pid == 0` files are retained only temporarily and pruned after the orphan timeout.
 - `PreToolUse` keeps a session in `tool` until `PostToolUse` writes the next explicit state. After three minutes from `PreToolUse`, Swift changes only the icon tint as a warning and leaves the persisted state, label, and timer semantics unchanged.
 - If Codex records a transcript `turn_aborted` event with `reason: "interrupted"`, Swift treats active `thinking`, `tool`, `compacting`, `permission`, or `waiting` as `idle`. This covers manual termination paths that do not reliably deliver a `Stop` hook.
-- Live active sessions are not aged out by a short quiet timeout; `thinking` and `compacting` remain visible until an explicit next-state event, stop/end event, or surface liveness says otherwise.
+- Live active sessions are not aged out by a short quiet timeout; `thinking` and `compacting` remain visible until an explicit next-state event, stop/end event, or surface liveness says otherwise. Resting sessions disappear according to the `Hide idle sessions` duration.
 
 This keeps current sessions visible while preventing stale files from accumulating indefinitely.
 

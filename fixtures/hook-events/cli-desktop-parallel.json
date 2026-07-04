@@ -104,8 +104,13 @@
         "session_id": "desktop-main"
       },
       "expect": {
-        "absent": ["desktop-main"],
         "sessions": {
+          "desktop-main": {
+            "state": "done",
+            "label": "Done",
+            "turnId": "",
+            "started": false
+          },
           "cli-main": {
             "state": "thinking"
           }
