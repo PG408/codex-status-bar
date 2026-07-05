@@ -62,6 +62,14 @@ Everything is controlled from the menu:
 | Exact terminal tab focus | No | Terminal tab/window precision is not implemented. |
 | ChatGPT or unrelated OpenAI apps | No | Only Codex hook events are tracked. |
 
+## Known issues
+
+### Goal continuation may not show live activity
+
+Codex `/goal` continuation may keep working without dispatching the same hooks
+as a normal prompt. In that case, Codex Status Bar may keep showing the previous
+state, such as `done`, until a normal prompt or a later hook event arrives.
+
 ## Requirements
 
 - macOS 12+
