@@ -20,6 +20,11 @@ const labels = {
   waiting: "Waiting",
 };
 
+const aliases = {
+  subagent: { state: "thinking", label: "Subagent", tool: "Task", activity: "subagent" },
+  "subagent-permission": { state: "permission", label: "Subagent permission", tool: "Task", activity: "subagent" },
+};
+
 if (stateArg === "latency") {
   console.log("Writing alternating states every 1000ms. Watch the menu bar; updates should appear within ~0.4-0.8s.");
   let index = 0;
@@ -38,19 +43,30 @@ if (stateArg === "latency") {
   return;
 }
 
-if (stateArg !== "demo" && !Object.prototype.hasOwnProperty.call(labels, stateArg)) {
+if (
+  stateArg !== "demo"
+  && !Object.prototype.hasOwnProperty.call(labels, stateArg)
+  && !Object.prototype.hasOwnProperty.call(aliases, stateArg)
+) {
   console.error(`Unknown state: ${stateArg}`);
-  console.error("Use one of: idle, done, thinking, tool, compacting, permission, waiting, demo, latency");
+  console.error("Use one of: idle, done, thinking, tool, compacting, permission, waiting, subagent, subagent-permission, demo, latency");
   process.exit(2);
 }
 
-function writeState(state, label) {
+function defaultToolFor(state) {
+  if (state === "tool") return "Bash";
+  if (state === "compacting") return "Compact";
+  return "";
+}
+
+function writeState(state, label, options = {}) {
   const now = Math.floor(Date.now() / 1000);
   const startedAt = state === "thinking" || state === "tool" || state === "compacting" ? now : 0;
   const out = {
     state,
     label: labelArg || label,
-    tool: state === "tool" ? "Bash" : state === "compacting" ? "Compact" : "",
+    tool: options.tool || defaultToolFor(state),
+    activity: options.activity || "",
     project: path.basename(process.cwd()),
     sessionId,
     turnId: state === "idle" || state === "done" ? "" : "dev-turn",
@@ -71,17 +87,19 @@ function writeState(state, label) {
 async function demo() {
   const delayMs = Number(process.env.CODEX_STATUSBAR_DEMO_DELAY_MS || 1600);
   const sequence = [
-    ["thinking", "Thinking"],
-    ["tool", "Running cmd"],
-    ["compacting", "Compacting"],
-    ["thinking", "Thinking"],
-    ["permission", "Awaiting permission"],
-    ["tool", "Editing"],
-    ["done", "Done"],
-    ["idle", ""],
+    ["thinking", "Thinking", {}],
+    ["tool", "Running cmd", {}],
+    ["compacting", "Compacting", {}],
+    ["thinking", "Subagent", { tool: "Task", activity: "subagent" }],
+    ["permission", "Subagent permission", { tool: "Task", activity: "subagent" }],
+    ["thinking", "Thinking", {}],
+    ["permission", "Awaiting permission", {}],
+    ["tool", "Editing", { tool: "apply_patch" }],
+    ["done", "Done", {}],
+    ["idle", "", {}],
   ];
-  for (const [state, label] of sequence) {
-    writeState(state, label);
+  for (const [state, label, options] of sequence) {
+    writeState(state, label, options);
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 }
@@ -92,5 +110,6 @@ if (stateArg === "demo") {
     process.exit(1);
   });
 } else {
-  writeState(stateArg, labels[stateArg]);
+  const status = aliases[stateArg] || { state: stateArg, label: labels[stateArg] };
+  writeState(status.state, status.label, { tool: status.tool, activity: status.activity });
 }
