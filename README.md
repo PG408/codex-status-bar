@@ -11,9 +11,7 @@ server component.
 > Built so you can tab away during a long Codex turn and still see, at a
 > glance, whether Codex is working, waiting on you, compacting, or done.
 > 
-<img width="672" alt="Codex Status Bar menu bar demo" src="assets/1.gif" />
-<br><br>
-<img width="710" alt="Codex Status Bar menu demo" src="assets/2.gif" />
+<img width="710" alt="Codex Status Bar menu bar demo" src="assets/x-preview.gif" />
 <br>
 
 
@@ -24,11 +22,10 @@ server component.
 > shell, terminal app, hook configuration, and Codex version.
 
 > [!Important]
-Codex Status Bar is strongly inspired by two reference projects:
+Codex Status Bar is strongly inspired by two reference projects [See acknowledgements](ACKNOWLEDGEMENTS.md):
 >-  [ilyastorunn/codex-status-bar](https://github.com/ilyastorunn/codex-status-bar) provided the Codex-focused prototype and installation direction.
 > - [m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar) provided the mature local-file plus macOS menu-bar architecture.
-
-**[See acknowledgements ->](ACKNOWLEDGEMENTS.md)**
+> 
 ---
 
 ## What it shows
