@@ -15,13 +15,13 @@ with the fallback labels below.
 | Idle | `idle` | none | no | white | image-only status item | Lifecycle-created session, reset, or inactive fallback. |
 | Done | `done` | none | no | white | image-only status item | Main `Stop`, `SessionEnd`, archived active session settlement, or manual reset. |
 | Thinking | `thinking` | `Thinking` | yes | green | standard Codex icon | Main `UserPromptSubmit`, `PostToolUse`, or `PostCompact`. |
-| Tool | `tool` | `Using tool` | yes | light blue | standard Codex icon | Main `PreToolUse`; known tools replace the fallback label with mapped text such as `Running command` or `Editing`. |
+| Tool | `tool` | `Using tool` | yes | light blue | standard Codex icon | Main `PreToolUse`; known tools replace the fallback label with mapped text such as `Running cmd` or `Editing`. |
 | Long-running tool warning | `tool` | current tool label | yes | amber | standard Codex icon with warning tint only | A `tool` session has no `PostToolUse` after 3 minutes. The state, label, and timer are not changed. |
 | Compacting | `compacting` | `Compacting` | yes | yellow | standard Codex icon | Main `PreCompact`. |
 | Permission | `permission` | `Awaiting permission` | no | red | Codex icon plus red status dot | Main `PermissionRequest`. |
 | Waiting | `waiting` | `Waiting` | no | yellow | standard Codex icon | Stale active Desktop session fallback after the liveness rule marks it waiting. |
-| Subagent running | `thinking` | `Subagent running` | yes | green | standard Codex icon | `SubagentStart` or subagent-scoped activity while no higher-priority main activity is visible. |
-| Subagent permission | `permission` | `Subagent awaiting permission` | no | red | Codex icon plus red status dot | Subagent-scoped `PermissionRequest`. |
+| Subagent running | `thinking` | `Subagent` | yes | green | standard Codex icon | `SubagentStart` or subagent-scoped activity while no higher-priority main activity is visible. |
+| Subagent permission | `permission` | `Subagent permission` | no | red | Codex icon plus red status dot | Subagent-scoped `PermissionRequest`. |
 
 Color constants in the current Swift implementation:
 

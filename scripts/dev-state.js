@@ -14,7 +14,7 @@ const labels = {
   idle: "",
   done: "Done",
   thinking: "Thinking",
-  tool: "Running command",
+  tool: "Running cmd",
   compacting: "Compacting",
   permission: "Awaiting permission",
   waiting: "Waiting",
@@ -72,7 +72,7 @@ async function demo() {
   const delayMs = Number(process.env.CODEX_STATUSBAR_DEMO_DELAY_MS || 1600);
   const sequence = [
     ["thinking", "Thinking"],
-    ["tool", "Running command"],
+    ["tool", "Running cmd"],
     ["compacting", "Compacting"],
     ["thinking", "Thinking"],
     ["permission", "Awaiting permission"],

@@ -34,7 +34,7 @@
         "sessions": {
           "main-stop": {
             "state": "thinking",
-            "label": "Subagent running",
+            "label": "Subagent",
             "activity": "subagent",
             "turnId": "main-turn"
           }

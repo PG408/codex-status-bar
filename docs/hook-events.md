@@ -18,7 +18,7 @@ subagent activity inside one session before deriving those fields.
 | Field | Purpose |
 |---|---|
 | `state` | One of `idle`, `done`, `thinking`, `tool`, `compacting`, `permission`, or `waiting`. |
-| `label` | Short menu bar label such as `Thinking`, `Running command`, or `Awaiting permission`. |
+| `label` | Short menu bar label such as `Thinking`, `Running cmd`, or `Awaiting permission`. |
 | `tool` | Raw tool name when available. |
 | `threadName` | Latest matching `thread_name` from `~/.codex/session_index.jsonl`; Side Chat sessions are detected from Codex Global State prompt history and display as `Side Chat`; defaults to `Unknown` when unavailable. |
 | `project` | Basename of `cwd`, `working_directory`, or `current_working_directory`. |
@@ -80,7 +80,7 @@ After a successful `SessionStart` or visible activity write, the writer asks the
 | `PostToolUse` | `*` | If the payload matches the main active `turnId`, returns main to `thinking` and preserves the timer. During a subagent payload, keeps that subagent running. |
 | `PreCompact` | none | If the payload matches the main active `turnId`, updates main `compacting`, `Compacting`, and preserves the active timer. During a subagent payload, keeps that subagent running. |
 | `PostCompact` | none | If the payload matches the main active `turnId`, returns main to `thinking` and preserves the timer. During a subagent payload, keeps that subagent running. |
-| `PermissionRequest` | `*` | Updates main or subagent permission. Main permission displays `Awaiting permission`; subagent permission displays `Subagent awaiting permission`. |
+| `PermissionRequest` | `*` | Updates main or subagent permission. Main permission displays `Awaiting permission`; subagent permission displays `Subagent permission`. |
 | `Stop` | none | If the payload matches the main active `turnId`, updates main `done`, clears active main metadata, and derives session-level `done`. |
 | `SubagentStart` | none | Adds or updates the corresponding subagent as running. |
 | `SubagentStop` | none | Removes the corresponding subagent from active facts. It does not write session-level `done`; the session display is re-derived from remaining main and subagent facts. |

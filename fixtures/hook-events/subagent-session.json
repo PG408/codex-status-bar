@@ -15,7 +15,7 @@
         "sessions": {
           "subagent": {
             "state": "thinking",
-            "label": "Subagent running",
+            "label": "Subagent",
             "activity": "subagent",
             "sessionId": "subagent",
             "turnId": "sub-turn",
@@ -39,7 +39,7 @@
         "sessions": {
           "subagent": {
             "state": "thinking",
-            "label": "Subagent running",
+            "label": "Subagent",
             "activity": "subagent",
             "sessionId": "subagent",
             "turnId": "sub-turn",
@@ -64,7 +64,7 @@
         "sessions": {
           "subagent": {
             "state": "thinking",
-            "label": "Subagent running",
+            "label": "Subagent",
             "activity": "subagent",
             "tool": "Bash",
             "turnId": "sub-turn",
@@ -88,7 +88,7 @@
         "sessions": {
           "subagent": {
             "state": "thinking",
-            "label": "Subagent running",
+            "label": "Subagent",
             "activity": "subagent",
             "tool": "Bash",
             "turnId": "sub-turn",
@@ -111,7 +111,7 @@
         "sessions": {
           "subagent": {
             "state": "thinking",
-            "label": "Subagent running",
+            "label": "Subagent",
             "activity": "subagent",
             "turnId": "sub-turn",
             "started": true
@@ -133,7 +133,7 @@
         "sessions": {
           "subagent": {
             "state": "thinking",
-            "label": "Subagent running",
+            "label": "Subagent",
             "activity": "subagent",
             "turnId": "sub-turn",
             "started": true
@@ -155,7 +155,7 @@
         "sessions": {
           "subagent": {
             "state": "permission",
-            "label": "Subagent awaiting permission",
+            "label": "Subagent permission",
             "activity": "subagent",
             "turnId": "sub-turn",
             "started": true

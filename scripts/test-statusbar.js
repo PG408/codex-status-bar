@@ -97,9 +97,9 @@ async function main() {
       id: 3,
       name: "Tool label",
       state: "tool",
-      label: "Running command",
+      label: "Running cmd",
       tool: "Bash",
-      expected: "Blue-ish/active icon plus 'Running command' and a timer.",
+      expected: "Blue-ish/active icon plus 'Running cmd' and a timer.",
     },
     {
       id: 4,

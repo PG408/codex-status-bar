@@ -31,11 +31,11 @@ Codex Status Bar is strongly inspired by two reference projects [See acknowledge
 ## What it shows
 
 - **Thinking** - the Codex icon animates with an elapsed timer.
-- **Running a tool** - a short label such as `Running command`, `Editing`,
+- **Running a tool** - a short label such as `Running cmd`, `Editing`,
   `Reading`, `Searching`, or `Using tool`.
 - **Compacting** - a dedicated compacting state while Codex compresses context.
 - **Awaiting permission** - a red permission indicator when Codex needs approval.
-- **Subagent running** - a separate state for subagent activity inside a turn.
+- **Subagent** - a separate state for subagent activity inside a turn.
 - **Idle / done** - a resting Codex icon when no active work is visible.
 
 Everything is controlled from the menu:
@@ -57,7 +57,7 @@ Everything is controlled from the menu:
 | Codex CLI sessions | Yes | CLI rows focus the terminal/editor app when a target is known. |
 | Multiple simultaneous sessions | Yes | The menu bar selects one lead session; the menu lists all tracked sessions. |
 | Permission requests | Yes | Permission state has the highest display priority. |
-| Subagent activity | Yes | Subagent running and subagent permission are shown separately. |
+| Subagent activity | Yes | Subagent and subagent permission are shown separately. |
 | Archived Desktop chats | Best effort | Archived or missing threads may only bring Codex forward. |
 | Exact terminal tab focus | No | Terminal tab/window precision is not implemented. |
 | ChatGPT or unrelated OpenAI apps | No | Only Codex hook events are tracked. |

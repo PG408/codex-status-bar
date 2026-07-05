@@ -76,7 +76,7 @@
         "sessions": {
           "cli-b": {
             "state": "tool",
-            "label": "Running command",
+            "label": "Running cmd",
             "tool": "Bash",
             "turnId": "turn-b"
           }

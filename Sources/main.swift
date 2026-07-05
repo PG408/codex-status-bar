@@ -229,6 +229,29 @@ final class StatusController: NSObject, NSMenuDelegate {
     let autoExitDelay: TimeInterval = 20
     let defaultThreadName = "Unknown"
     let sideChatRestingMenuHideAfter: TimeInterval = 5 * 60
+    let statusIconWidth: CGFloat = 18
+    let statusIconLeftInset: CGFloat = 1
+    let statusIconTextGap: CGFloat = 2
+    let statusIconTimerGap: CGFloat = 2
+    let statusTextTimerGap: CGFloat = 2
+    let statusTimerSafetyPadding: CGFloat = 1
+    let statusVerticalInset: CGFloat = 2
+    let normalStatusLabels = [
+        "Thinking",
+        "Using tool",
+        "Running cmd",
+        "Editing",
+        "Reading",
+        "Searching",
+        "Browsing",
+        "Web search",
+        "Planning",
+        "Compacting",
+        "Subagent",
+        "Waiting",
+    ]
+    let permissionStatusLabels = ["Awaiting permission"]
+    let subagentPermissionStatusLabels = ["Subagent permission"]
 
     var stateDir: String {
         ProcessInfo.processInfo.environment["CODEX_STATUSBAR_STATE_DIR"] ?? defaultStateDir
@@ -345,6 +368,9 @@ final class StatusController: NSObject, NSMenuDelegate {
     var lastSoundState: State = .idle
     lazy var installedCodexIcon: NSImage? = loadInstalledCodexIcon()
     lazy var installedCodexTemplateIcon: NSImage? = loadInstalledCodexTemplateIcon()
+    let statusIconView = NSImageView()
+    let statusTextField = NSTextField(labelWithString: "")
+    let statusTimerField = NSTextField(labelWithString: "")
 
     let codexGreen = NSColor(srgbRed: 0.08, green: 0.72, blue: 0.48, alpha: 1)
     let codexWhite = NSColor.white
@@ -382,6 +408,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         if let button = statusItem.button {
             button.imageScaling = .scaleProportionallyDown
             button.toolTip = "Codex Status Bar"
+            installStatusSubviews(in: button)
         }
 
         render(state: .idle, label: "", startedAt: 0)
@@ -1306,19 +1333,38 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func statusLabel(for session: Session) -> String {
+        let label: String
         switch session.effectiveState {
         case .thinking:
-            return session.label.isEmpty ? "Thinking" : session.label
+            label = session.label.isEmpty ? "Thinking" : session.label
         case .tool:
-            return session.label.isEmpty ? "Using tool" : session.label
+            label = session.label.isEmpty ? "Using tool" : session.label
         case .compacting:
-            return session.label.isEmpty ? "Compacting" : session.label
+            label = session.label.isEmpty ? "Compacting" : session.label
         case .permission:
-            return session.label.isEmpty ? "Awaiting permission" : session.label
+            label = session.label.isEmpty ? "Awaiting permission" : session.label
         case .waiting:
-            return session.label.isEmpty ? "Waiting" : session.label
+            label = session.label.isEmpty ? "Waiting" : session.label
         case .idle, .done:
-            return ""
+            label = ""
+        }
+        return normalizedStatusLabel(label)
+    }
+
+    func normalizedStatusLabel(_ label: String) -> String {
+        switch label {
+        case "Running command":
+            return "Running cmd"
+        case "Browsing web":
+            return "Browsing"
+        case "Searching web":
+            return "Web search"
+        case "Subagent running":
+            return "Subagent"
+        case "Subagent awaiting permission":
+            return "Subagent permission"
+        default:
+            return label
         }
     }
 
@@ -1351,7 +1397,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         statusItem.isVisible = true
         frameIndex = 0
-        statusItem.button?.image = icon(for: state, frame: frameIndex)
+        statusIconView.image = icon(for: state, frame: frameIndex)
         applyTitle()
     }
 
@@ -1376,36 +1422,184 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func applyTitle() {
         guard let button = statusItem.button else { return }
-        var text = activeLabel
-
-        if !showStatusText {
+        installStatusSubviews(in: button)
+        guard activeState != .idle && activeState != .done else {
             statusItem.length = NSStatusItem.squareLength
+            button.image = icon(for: activeState, frame: frameIndex)
             button.imagePosition = .imageOnly
-            button.attributedTitle = NSAttributedString(string: "")
+            hideStatusSubviews()
             return
         }
 
-        if showTimer, activeStartedAt > 0 {
-            let seconds = max(0, Int(Date().timeIntervalSince1970 - activeStartedAt))
-            let minutes = seconds / 60
-            let rest = seconds % 60
-            text += "  " + (minutes > 0 ? "\(minutes)m \(rest)s" : "\(rest)s")
-        }
-
-        if text.isEmpty {
+        let timer = currentStatusTimer()
+        if !showStatusText && !showTimer {
             statusItem.length = NSStatusItem.squareLength
+            button.image = icon(for: activeState, frame: frameIndex)
             button.imagePosition = .imageOnly
-            button.attributedTitle = NSAttributedString(string: "")
+            hideStatusSubviews()
             return
         }
 
-        statusItem.length = NSStatusItem.variableLength
-        button.imagePosition = .imageLeading
-        let attrs: [NSAttributedString.Key: Any] = [
-            .foregroundColor: NSColor.labelColor,
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 0, weight: .regular),
+        let layout = statusTitleLayout()
+        statusItem.length = layout.itemWidth
+        button.image = nil
+        button.attributedTitle = NSAttributedString(string: "")
+        button.title = ""
+        button.imagePosition = .noImage
+        applyStatusSubviewLayout(label: showStatusText ? activeLabel : "",
+                                 timer: showTimer ? timer : "",
+                                 layout: layout)
+    }
+
+    struct StatusTitleLayout {
+        let itemWidth: CGFloat
+        let textX: CGFloat
+        let textWidth: CGFloat
+        let timerX: CGFloat
+        let timerWidth: CGFloat
+    }
+
+    func statusTitleLayout() -> StatusTitleLayout {
+        let hasText = showStatusText
+        let hasTimer = showTimer
+        let maxTextWidth = hasText ? measuredMaxStatusTextWidth(for: activeLabel) : 0
+        let maxTimerWidth = hasTimer ? measuredTimerWidth(for: currentElapsedSeconds()) : 0
+        let iconX = statusIconLeftInset
+        let iconRight = iconX + statusIconWidth
+        let textX = iconRight + (hasText ? statusIconTextGap : 0)
+        let textWidth = maxTextWidth
+        let timerGap = hasText ? statusTextTimerGap : statusIconTimerGap
+        let timerX = hasTimer ? (hasText ? textX + textWidth + timerGap : iconRight + timerGap) : 0
+        let timerWidth = maxTimerWidth
+        let contentRight: CGFloat
+
+        if hasTimer {
+            contentRight = timerX + timerWidth
+        } else if hasText {
+            contentRight = textX + textWidth
+        } else {
+            contentRight = iconRight
+        }
+
+        let itemWidth = contentRight + statusIconLeftInset
+        return StatusTitleLayout(itemWidth: itemWidth,
+                                 textX: textX,
+                                 textWidth: textWidth,
+                                 timerX: timerX,
+                                 timerWidth: timerWidth)
+    }
+
+    func installStatusSubviews(in button: NSStatusBarButton) {
+        if statusIconView.superview !== button {
+            statusIconView.imageScaling = .scaleProportionallyDown
+            button.addSubview(statusIconView)
+        }
+        if statusTextField.superview !== button {
+            statusTextField.font = statusTitleFont()
+            statusTextField.textColor = .labelColor
+            statusTextField.alignment = .left
+            statusTextField.lineBreakMode = .byClipping
+            statusTextField.isBezeled = false
+            statusTextField.drawsBackground = false
+            button.addSubview(statusTextField)
+        }
+        if statusTimerField.superview !== button {
+            statusTimerField.font = statusTitleFont()
+            statusTimerField.textColor = .labelColor
+            statusTimerField.alignment = .right
+            statusTimerField.lineBreakMode = .byClipping
+            statusTimerField.isBezeled = false
+            statusTimerField.drawsBackground = false
+            button.addSubview(statusTimerField)
+        }
+    }
+
+    func applyStatusSubviewLayout(label: String, timer: String, layout: StatusTitleLayout) {
+        statusIconView.isHidden = false
+        statusTextField.isHidden = !showStatusText
+        statusTimerField.isHidden = !showTimer
+        statusTextField.stringValue = label
+        statusTimerField.stringValue = timer
+
+        let height = max(statusItem.button?.bounds.height ?? NSStatusItem.squareLength, NSStatusItem.squareLength)
+        let textHeight = height - statusVerticalInset * 2
+        statusIconView.frame = NSRect(x: statusIconLeftInset,
+                                      y: (height - statusIconWidth) / 2,
+                                      width: statusIconWidth,
+                                      height: statusIconWidth)
+        statusTextField.frame = NSRect(x: layout.textX,
+                                       y: statusVerticalInset,
+                                       width: layout.textWidth,
+                                       height: textHeight)
+        statusTimerField.frame = NSRect(x: layout.timerX,
+                                        y: statusVerticalInset,
+                                        width: layout.timerWidth,
+                                        height: textHeight)
+    }
+
+    func hideStatusSubviews() {
+        statusIconView.isHidden = true
+        statusTextField.isHidden = true
+        statusTimerField.isHidden = true
+        statusTextField.stringValue = ""
+        statusTimerField.stringValue = ""
+    }
+
+    func statusTitleFont() -> NSFont {
+        NSFont.monospacedDigitSystemFont(ofSize: 0, weight: .regular)
+    }
+
+    func statusTitleAttributes() -> [NSAttributedString.Key: Any] {
+        [
+            .font: statusTitleFont(),
         ]
-        button.attributedTitle = NSAttributedString(string: " \(text)", attributes: attrs)
+    }
+
+    func measuredMaxStatusTextWidth(for label: String) -> CGFloat {
+        ceil(statusWidthGroupLabels(for: label).map { measuredTextWidth($0) }.max() ?? 0)
+    }
+
+    func statusWidthGroupLabels(for label: String) -> [String] {
+        switch normalizedStatusLabel(label) {
+        case "Subagent permission":
+            return subagentPermissionStatusLabels
+        case "Awaiting permission":
+            return permissionStatusLabels
+        default:
+            return normalStatusLabels
+        }
+    }
+
+    func measuredTimerWidth(for elapsedSeconds: Int?) -> CGFloat {
+        guard let elapsedSeconds else { return 0 }
+        return ceil(measuredTextWidth(elapsed(timerWidthSampleSeconds(for: elapsedSeconds)))) + statusTimerSafetyPadding
+    }
+
+    func timerWidthSampleSeconds(for elapsedSeconds: Int) -> Int {
+        if elapsedSeconds < 60 {
+            return 59
+        }
+        if elapsedSeconds < 10 * 60 {
+            return 9 * 60 + 59
+        }
+        if elapsedSeconds < 60 * 60 {
+            return 59 * 60 + 59
+        }
+        return 999 * 60 + 59
+    }
+
+    func measuredTextWidth(_ text: String) -> CGFloat {
+        (text as NSString).size(withAttributes: statusTitleAttributes()).width
+    }
+
+    func currentStatusTimer() -> String {
+        guard let seconds = currentElapsedSeconds() else { return "" }
+        return elapsed(seconds)
+    }
+
+    func currentElapsedSeconds() -> Int? {
+        guard activeStartedAt > 0 else { return nil }
+        return max(0, Int(Date().timeIntervalSince1970 - activeStartedAt))
     }
 
     func icon(for state: State, frame: Int) -> NSImage {
