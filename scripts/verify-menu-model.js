@@ -13,6 +13,8 @@ const docs = fs.existsSync("docs/sessions-menu.md")
   : "";
 const writer = fs.readFileSync("scripts/codex-status-writer.js", "utf8");
 const lifecycleWriter = fs.readFileSync("scripts/codex-lifecycle-writer.js", "utf8");
+const buildScript = fs.readFileSync("build.sh", "utf8");
+const runScript = fs.readFileSync("script/build_and_run.sh", "utf8");
 
 const checks = [
   ["Swift defines SessionRowView", swift.includes("final class SessionRowView")],
@@ -69,9 +71,8 @@ const checks = [
   ["Swift keeps active status item width fixed", swift.includes("StatusTitleLayout") && swift.includes("statusTitleLayout()") && swift.includes("statusItem.length = layout.itemWidth") && !swift.includes("statusItem.length = NSStatusItem.variableLength")],
   ["Swift dynamically measures grouped status text and timer widths", swift.includes("measuredMaxStatusTextWidth(for: activeLabel)") && swift.includes("statusWidthGroupLabels(for: label).map") && swift.includes("normalStatusLabels") && swift.includes("permissionStatusLabels") && swift.includes("subagentPermissionStatusLabels") && swift.includes("measuredTimerWidth(for: currentElapsedSeconds())") && swift.includes("timerWidthSampleSeconds(for elapsedSeconds: Int)")],
   ["Swift groups timer width by low-frequency elapsed thresholds", swift.includes("if elapsedSeconds < 60") && swift.includes("if elapsedSeconds < 10 * 60") && swift.includes("if elapsedSeconds < 60 * 60") && swift.includes("return 999 * 60 + 59")],
-  ["Swift uses native status button content for active status", swift.includes("button.image = icon(for: activeState, frame: frameIndex)") && swift.includes("button.attributedTitle = statusTitleAttributedString") && swift.includes("button.imagePosition = .imageLeading")],
-  ["Swift does not clear native title after assigning attributed status", !swift.includes('button.attributedTitle = statusTitleAttributedString(label: showStatusText ? activeLabel : "",\n                                                             timer: showTimer ? timer : "",\n                                                             layout: layout)\n        button.title = ""')],
-  ["Swift avoids custom status button subviews", !swift.includes("statusIconView") && !swift.includes("statusTextField") && !swift.includes("statusTimerField") && !swift.includes("installStatusSubviews(in: button)")],
+  ["Swift uses explicit status button subviews for alignment", swift.includes("statusIconView") && swift.includes("statusTextField") && swift.includes("statusTimerField") && swift.includes("installStatusSubviews(in: button)")],
+  ["Swift left-aligns status text and right-aligns timer", swift.includes("statusTextField.alignment = .left") && swift.includes("statusTimerField.alignment = .right") && swift.includes("statusTextField.frame = NSRect(x: layout.textX") && swift.includes("statusTimerField.frame = NSRect(x: layout.timerX")],
   ["Swift collapses inactive status item to icon only", swift.includes("guard activeState != .idle && activeState != .done else") && swift.includes("button.imagePosition = .imageOnly")],
   ["Swift does not collapse active timer layout just because timer text is empty", swift.includes("if !showStatusText && !showTimer") && !swift.includes("!showStatusText && (!showTimer || timer.isEmpty)")],
   ["Swift configures status button image scaling", swift.includes("button.imageScaling = .scaleProportionallyDown")],
@@ -80,6 +81,7 @@ const checks = [
   ["Swift auto exit avoids full process-table scans", swift.includes("NSWorkspace.shared.runningApplications") && !swift.includes('process.arguments = ["-axo", "command="]')],
   ["Swift avoids wait-before-read pipe deadlocks", !swift.includes("process.waitUntilExit()\n            let data = pipe.fileHandleForReading.readDataToEndOfFile()")],
   ["Run script avoids forced duplicate open", !fs.readFileSync("script/build_and_run.sh", "utf8").includes("open -g -n")],
+  ["Build and run scripts use the stable bundle identifier", buildScript.includes("io.github.pg408.codexstatusbar") && runScript.includes('BUNDLE_ID="io.github.pg408.codexstatusbar"') && !buildScript.includes("com.local.codexstatusbar") && !runScript.includes("com.local.codexstatusbar")],
   ["Docs mention Sessions menu", readme.includes("Sessions Menu") || docs.includes("Sessions Menu")],
   ["Docs mention hide idle behavior", readme.includes("Hide idle sessions") || docs.includes("Hide idle sessions")],
   ["Docs mention click focus boundary", readme.includes("click") || docs.includes("click")],

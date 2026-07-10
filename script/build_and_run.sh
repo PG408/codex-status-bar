@@ -3,7 +3,7 @@ set -euo pipefail
 
 MODE="${1:-run}"
 APP_NAME="CodexStatusBar"
-BUNDLE_ID="com.local.codexstatusbar"
+BUNDLE_ID="io.github.pg408.codexstatusbar"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_BUNDLE="$ROOT_DIR/build/$APP_NAME.app"
