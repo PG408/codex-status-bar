@@ -15,6 +15,7 @@ const writer = fs.readFileSync("scripts/codex-status-writer.js", "utf8");
 const lifecycleWriter = fs.readFileSync("scripts/codex-lifecycle-writer.js", "utf8");
 const buildScript = fs.readFileSync("build.sh", "utf8");
 const runScript = fs.readFileSync("script/build_and_run.sh", "utf8");
+const visualStatusDocs = fs.readFileSync("docs/visual-status.md", "utf8");
 
 const checks = [
   ["Swift defines SessionRowView", swift.includes("final class SessionRowView")],
@@ -76,6 +77,10 @@ const checks = [
   ["Swift collapses inactive status item to icon only", swift.includes("guard activeState != .idle && activeState != .done else") && swift.includes("button.imagePosition = .imageOnly")],
   ["Swift does not collapse active timer layout just because timer text is empty", swift.includes("if !showStatusText && !showTimer") && !swift.includes("!showStatusText && (!showTimer || timer.isEmpty)")],
   ["Swift configures status button image scaling", swift.includes("button.imageScaling = .scaleProportionallyDown")],
+  ["Codex template source assets are present", fs.existsSync("assets/status-icons/codexTemplate.png") && fs.existsSync("assets/status-icons/codexTemplate@2x.png")],
+  ["Build copies bundled Codex template assets", buildScript.includes('cp assets/status-icons/codexTemplate.png "$APP/Contents/Resources/codexTemplate.png"') && buildScript.includes('cp assets/status-icons/codexTemplate@2x.png "$APP/Contents/Resources/codexTemplate@2x.png"')],
+  ["Swift loads the bundled Codex template before its drawing fallback", swift.includes("bundledCodexTemplateIcon") && swift.includes("loadBundledCodexTemplateIcon") && swift.includes('codexTemplate@2x.png') && swift.includes("tintedAppIcon(source: templateIcon, color: color") && !swift.includes("loadInstalledCodexIcon") && !swift.includes("loadInstalledCodexTemplateIcon")],
+  ["System icon color option is fully removed", !swift.includes("iconSystem") && !swift.includes("Use system icon color") && !swift.includes("toggleIconColor") && !readme.includes("Use system icon color") && !visualStatusDocs.includes("Use system icon color")],
   ["Swift does not kill duplicate instances on app entry", !swift.includes("terminateDuplicateInstances")],
   ["Swift schedules startup self repair off the launch path", swift.includes("scheduleStartupHookRepair") && swift.includes("DispatchQueue.global")],
   ["Swift auto exit avoids full process-table scans", swift.includes("NSWorkspace.shared.runningApplications") && !swift.includes('process.arguments = ["-axo", "command="]')],

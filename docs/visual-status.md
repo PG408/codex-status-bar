@@ -36,10 +36,9 @@ Color constants in the current Swift implementation:
 
 ## Icon Modes
 
-`Codex` icon style uses the rules above. If `Use system icon color` is enabled,
-non-permission states use the system template color instead of custom tints.
-`permission` still uses the status-dot overlay so approval requests remain
-visually distinct.
+`Codex` icon style uses the bundled original Codex menu bar template and applies
+the state colors above. `permission` also uses the status-dot overlay so approval
+requests remain visually distinct.
 
 `Pet` icon style is intentionally separate. PET rendering follows the PET icon
 frames and does not use the Codex tint table. State text and timers are still

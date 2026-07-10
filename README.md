@@ -44,7 +44,6 @@ Everything is controlled from the menu:
 - **Show status text:** choose between icon-only mode and icon + label mode.
 - **Play notification sounds:** toggle permission and completion sounds.
 - **Hide idle sessions:** choose how long resting sessions stay in the menu.
-- **Use system icon color:** use the adaptive macOS menu bar glyph color.
 - **Icon Style:** switch between the Codex icon and Codex Pets.
 - **Pet:** choose an installed local Codex pet for the menu bar icon.
 - **Diagnostics:** reveal local state files or reset local display state.

@@ -40,6 +40,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 
 cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+cp assets/status-icons/codexTemplate.png "$APP/Contents/Resources/codexTemplate.png"
+cp assets/status-icons/codexTemplate@2x.png "$APP/Contents/Resources/codexTemplate@2x.png"
 cp scripts/codex-status-writer.js "$APP/Contents/Resources/codex-status-writer.js"
 cp scripts/codex-lifecycle-writer.js "$APP/Contents/Resources/codex-lifecycle-writer.js"
 cp scripts/install-codex-statusbar.js "$APP/Contents/Resources/install-codex-statusbar.js"

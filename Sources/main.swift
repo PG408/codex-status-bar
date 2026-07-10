@@ -360,14 +360,12 @@ final class StatusController: NSObject, NSMenuDelegate {
     var showTimer = true
     var showStatusText = true
     var playNotificationSounds = true
-    var iconSystem = false
     var iconStyle: IconStyle = .codex
     var selectedPetId = ""
     lazy var pets: [PetInfo] = loadPets()
     var petImageCache: [String: NSImage] = [:]
     var lastSoundState: State = .idle
-    lazy var installedCodexIcon: NSImage? = loadInstalledCodexIcon()
-    lazy var installedCodexTemplateIcon: NSImage? = loadInstalledCodexTemplateIcon()
+    lazy var bundledCodexTemplateIcon: NSImage? = loadBundledCodexTemplateIcon()
     let statusIconView = NSImageView()
     let statusTextField = NSTextField(labelWithString: "")
     let statusTimerField = NSTextField(labelWithString: "")
@@ -392,9 +390,6 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
         if defaults.object(forKey: "playNotificationSounds") != nil {
             playNotificationSounds = defaults.bool(forKey: "playNotificationSounds")
-        }
-        if defaults.object(forKey: "iconSystem") != nil {
-            iconSystem = defaults.bool(forKey: "iconSystem")
         }
         if let rawIconStyle = defaults.string(forKey: "iconStyle"),
            let savedIconStyle = IconStyle(rawValue: rawIconStyle) {
@@ -471,11 +466,6 @@ final class StatusController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         menu.addItem(header("Icon"))
-        let colorItem = NSMenuItem(title: "Use system icon color", action: #selector(toggleIconColor), keyEquivalent: "")
-        colorItem.target = self
-        colorItem.state = iconSystem ? .on : .off
-        menu.addItem(colorItem)
-
         let iconStyleItem = NSMenuItem(title: "Icon Style", action: nil, keyEquivalent: "")
         let iconStyleMenu = NSMenu()
         let codexItem = NSMenuItem(title: "Codex", action: #selector(useCodexIconStyle), keyEquivalent: "")
@@ -573,12 +563,6 @@ final class StatusController: NSObject, NSMenuDelegate {
     @objc func toggleNotificationSounds() {
         playNotificationSounds.toggle()
         UserDefaults.standard.set(playNotificationSounds, forKey: "playNotificationSounds")
-    }
-
-    @objc func toggleIconColor() {
-        iconSystem.toggle()
-        UserDefaults.standard.set(iconSystem, forKey: "iconSystem")
-        render(state: activeState, label: activeLabel, startedAt: activeStartedAt, iconWarning: activeIconWarning)
     }
 
     @objc func chooseHideIdle(_ sender: NSMenuItem) {
@@ -1603,34 +1587,28 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func icon(for state: State, frame: Int) -> NSImage {
-        let color: NSColor?
+        let color: NSColor
         switch state {
         case .permission:
             color = red
         case .tool where activeIconWarning:
             color = longRunningToolIconTint
         case .tool:
-            color = iconSystem ? nil : lightBlue
+            color = lightBlue
         case .compacting, .waiting:
-            color = iconSystem ? nil : yellow
+            color = yellow
         case .thinking:
-            color = iconSystem ? nil : codexGreen
+            color = codexGreen
         case .idle, .done:
-            color = iconSystem ? nil : codexWhite
+            color = codexWhite
         }
 
         if iconStyle == .pet, let pet = effectivePet(), let petImage = petImage(for: pet) {
             return petIcon(source: petImage, state: state, frame: frame)
         }
         let image: NSImage
-        if iconSystem, state != .permission, let installedCodexTemplateIcon {
-            image = appIcon(source: installedCodexTemplateIcon, state: state, frame: frame, isTemplate: true)
-        } else if let installedCodexTemplateIcon, let color {
-            image = tintedAppIcon(source: installedCodexTemplateIcon, color: color, state: state, frame: frame)
-        } else if let installedCodexIcon, let color {
-            image = tintedAppIcon(source: installedCodexIcon, color: color, state: state, frame: frame)
-        } else if let installedCodexIcon {
-            image = appIcon(source: installedCodexIcon, state: state, frame: frame, isTemplate: false)
+        if let templateIcon = bundledCodexTemplateIcon {
+            image = tintedAppIcon(source: templateIcon, color: color, state: state, frame: frame)
         } else {
             image = codexIcon(color: color, state: state, frame: frame)
         }
@@ -1655,55 +1633,21 @@ final class StatusController: NSObject, NSMenuDelegate {
         return image
     }
 
-    func loadInstalledCodexIcon() -> NSImage? {
+    func loadBundledCodexTemplateIcon() -> NSImage? {
+        guard let resourcePath = Bundle.main.resourcePath else { return nil }
         let candidates = [
-            "/Applications/Codex.app/Contents/Resources/icon-codex-dark-color.png",
-            "/Applications/Codex.app/Contents/Resources/icon.png",
-            "/Applications/Codex.app/Contents/Resources/app.icns",
-            "/Applications/Codex.app/Contents/Resources/icon.icns",
-            "/Applications/Codex.app/Contents/Resources/electron.icns",
+            (resourcePath as NSString).appendingPathComponent("codexTemplate@2x.png"),
+            (resourcePath as NSString).appendingPathComponent("codexTemplate.png"),
         ]
 
         for path in candidates where FileManager.default.fileExists(atPath: path) {
             if let image = NSImage(contentsOfFile: path) {
-                return image
-            }
-        }
-        return nil
-    }
-
-    func loadInstalledCodexTemplateIcon() -> NSImage? {
-        let candidates = [
-            "/Applications/Codex.app/Contents/Resources/codexTemplate@2x.png",
-            "/Applications/Codex.app/Contents/Resources/codexTemplate.png",
-        ]
-
-        for path in candidates where FileManager.default.fileExists(atPath: path) {
-            if let image = NSImage(contentsOfFile: path) {
+                image.size = NSSize(width: 18, height: 18)
                 image.isTemplate = true
                 return image
             }
         }
         return nil
-    }
-
-    func appIcon(source: NSImage, state: State, frame: Int, isTemplate: Bool) -> NSImage {
-        let size: CGFloat = 18
-        let active = state == .thinking || state == .tool || state == .compacting
-        let pulseScale = active ? 0.94 + 0.06 * pulse(frame: frame, index: 0) : 1
-        let drawSize = size * pulseScale
-        let origin = (size - drawSize) / 2
-        let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { _ in
-            source.draw(
-                in: NSRect(x: origin, y: origin, width: drawSize, height: drawSize),
-                from: .zero,
-                operation: .sourceOver,
-                fraction: active ? 0.92 : 1
-            )
-            return true
-        }
-        image.isTemplate = isTemplate
-        return image
     }
 
     func tintedAppIcon(source: NSImage, color: NSColor, state: State, frame: Int) -> NSImage {
