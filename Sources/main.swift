@@ -235,7 +235,6 @@ final class StatusController: NSObject, NSMenuDelegate {
     let statusIconTimerGap: CGFloat = 2
     let statusTextTimerGap: CGFloat = 2
     let statusTimerSafetyPadding: CGFloat = 1
-    let statusVerticalInset: CGFloat = 2
     let normalStatusLabels = [
         "Thinking",
         "Using tool",
@@ -368,9 +367,6 @@ final class StatusController: NSObject, NSMenuDelegate {
     var lastSoundState: State = .idle
     lazy var installedCodexIcon: NSImage? = loadInstalledCodexIcon()
     lazy var installedCodexTemplateIcon: NSImage? = loadInstalledCodexTemplateIcon()
-    let statusIconView = NSImageView()
-    let statusTextField = NSTextField(labelWithString: "")
-    let statusTimerField = NSTextField(labelWithString: "")
 
     let codexGreen = NSColor(srgbRed: 0.08, green: 0.72, blue: 0.48, alpha: 1)
     let codexWhite = NSColor.white
@@ -382,6 +378,8 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     override init() {
         super.init()
+
+        statusItem.autosaveName = "CodexStatusBar"
 
         let defaults = UserDefaults.standard
         if defaults.object(forKey: "showTimer") != nil {
@@ -408,7 +406,6 @@ final class StatusController: NSObject, NSMenuDelegate {
         if let button = statusItem.button {
             button.imageScaling = .scaleProportionallyDown
             button.toolTip = "Codex Status Bar"
-            installStatusSubviews(in: button)
         }
 
         render(state: .idle, label: "", startedAt: 0)
@@ -1397,7 +1394,6 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         statusItem.isVisible = true
         frameIndex = 0
-        statusIconView.image = icon(for: state, frame: frameIndex)
         applyTitle()
     }
 
@@ -1422,12 +1418,12 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func applyTitle() {
         guard let button = statusItem.button else { return }
-        installStatusSubviews(in: button)
         guard activeState != .idle && activeState != .done else {
             statusItem.length = NSStatusItem.squareLength
             button.image = icon(for: activeState, frame: frameIndex)
             button.imagePosition = .imageOnly
-            hideStatusSubviews()
+            button.attributedTitle = NSAttributedString(string: "")
+            button.title = ""
             return
         }
 
@@ -1436,19 +1432,19 @@ final class StatusController: NSObject, NSMenuDelegate {
             statusItem.length = NSStatusItem.squareLength
             button.image = icon(for: activeState, frame: frameIndex)
             button.imagePosition = .imageOnly
-            hideStatusSubviews()
+            button.attributedTitle = NSAttributedString(string: "")
+            button.title = ""
             return
         }
 
         let layout = statusTitleLayout()
         statusItem.length = layout.itemWidth
-        button.image = nil
-        button.attributedTitle = NSAttributedString(string: "")
+        button.image = icon(for: activeState, frame: frameIndex)
         button.title = ""
-        button.imagePosition = .noImage
-        applyStatusSubviewLayout(label: showStatusText ? activeLabel : "",
-                                 timer: showTimer ? timer : "",
-                                 layout: layout)
+        button.attributedTitle = statusTitleAttributedString(label: showStatusText ? activeLabel : "",
+                                                             timer: showTimer ? timer : "",
+                                                             layout: layout)
+        button.imagePosition = .imageLeading
     }
 
     struct StatusTitleLayout {
@@ -1489,62 +1485,6 @@ final class StatusController: NSObject, NSMenuDelegate {
                                  timerWidth: timerWidth)
     }
 
-    func installStatusSubviews(in button: NSStatusBarButton) {
-        if statusIconView.superview !== button {
-            statusIconView.imageScaling = .scaleProportionallyDown
-            button.addSubview(statusIconView)
-        }
-        if statusTextField.superview !== button {
-            statusTextField.font = statusTitleFont()
-            statusTextField.textColor = .labelColor
-            statusTextField.alignment = .left
-            statusTextField.lineBreakMode = .byClipping
-            statusTextField.isBezeled = false
-            statusTextField.drawsBackground = false
-            button.addSubview(statusTextField)
-        }
-        if statusTimerField.superview !== button {
-            statusTimerField.font = statusTitleFont()
-            statusTimerField.textColor = .labelColor
-            statusTimerField.alignment = .right
-            statusTimerField.lineBreakMode = .byClipping
-            statusTimerField.isBezeled = false
-            statusTimerField.drawsBackground = false
-            button.addSubview(statusTimerField)
-        }
-    }
-
-    func applyStatusSubviewLayout(label: String, timer: String, layout: StatusTitleLayout) {
-        statusIconView.isHidden = false
-        statusTextField.isHidden = !showStatusText
-        statusTimerField.isHidden = !showTimer
-        statusTextField.stringValue = label
-        statusTimerField.stringValue = timer
-
-        let height = max(statusItem.button?.bounds.height ?? NSStatusItem.squareLength, NSStatusItem.squareLength)
-        let textHeight = height - statusVerticalInset * 2
-        statusIconView.frame = NSRect(x: statusIconLeftInset,
-                                      y: (height - statusIconWidth) / 2,
-                                      width: statusIconWidth,
-                                      height: statusIconWidth)
-        statusTextField.frame = NSRect(x: layout.textX,
-                                       y: statusVerticalInset,
-                                       width: layout.textWidth,
-                                       height: textHeight)
-        statusTimerField.frame = NSRect(x: layout.timerX,
-                                        y: statusVerticalInset,
-                                        width: layout.timerWidth,
-                                        height: textHeight)
-    }
-
-    func hideStatusSubviews() {
-        statusIconView.isHidden = true
-        statusTextField.isHidden = true
-        statusTimerField.isHidden = true
-        statusTextField.stringValue = ""
-        statusTimerField.stringValue = ""
-    }
-
     func statusTitleFont() -> NSFont {
         NSFont.monospacedDigitSystemFont(ofSize: 0, weight: .regular)
     }
@@ -1553,6 +1493,26 @@ final class StatusController: NSObject, NSMenuDelegate {
         [
             .font: statusTitleFont(),
         ]
+    }
+
+    func statusTitleAttributedString(label: String, timer: String, layout: StatusTitleLayout) -> NSAttributedString {
+        let title = statusTitleString(label: label, timer: timer, layout: layout)
+        return NSAttributedString(string: title, attributes: statusTitleAttributes())
+    }
+
+    func statusTitleString(label: String, timer: String, layout: StatusTitleLayout) -> String {
+        if label.isEmpty {
+            return timer
+        }
+        if timer.isEmpty {
+            return label
+        }
+
+        let targetWidth = layout.textWidth + statusTextTimerGap + layout.timerWidth
+        let usedWidth = measuredTextWidth(label) + measuredTextWidth(timer)
+        let spaceWidth = max(1, measuredTextWidth(" "))
+        let spaceCount = max(1, Int(ceil((targetWidth - usedWidth) / spaceWidth)))
+        return label + String(repeating: " ", count: spaceCount) + timer
     }
 
     func measuredMaxStatusTextWidth(for label: String) -> CGFloat {
