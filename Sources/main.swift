@@ -226,6 +226,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     let defaultLegacyStatePath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.json")
     let defaultThreadMetadataPath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/state_5.sqlite")
     let pollInterval: TimeInterval = 0.4
+    let maintenanceInterval: TimeInterval = 5
     let autoExitDelay: TimeInterval = 20
     let defaultThreadName = "Unknown"
     let sideChatRestingMenuHideAfter: TimeInterval = 5 * 60
@@ -343,6 +344,11 @@ final class StatusController: NSObject, NSMenuDelegate {
     lazy var threadMetadataStore = ThreadMetadataStore(sqlitePath: threadMetadataPath)
     var fileMTimes: [String: Date] = [:]
     var legacyMTime: Date = .distantPast
+    var codexDesktopProcessCache = TimedBooleanCache()
+    var desktopSessionProcessCaches: [Int32: TimedBooleanCache] = [:]
+    var lastMaintenanceTickAt: TimeInterval?
+    var lastObservedActiveElapsedSecond: Int?
+    var lastObservedMenuSecond: Int?
     var menuIsOpen = false
     var sessionMenuItems: [(item: NSMenuItem, id: String)] = []
 
@@ -366,9 +372,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     var petImageCache: [String: NSImage] = [:]
     var lastSoundState: State = .idle
     lazy var bundledCodexTemplateIcon: NSImage? = loadBundledCodexTemplateIcon()
-    let statusIconView = NSImageView()
-    let statusTextField = NSTextField(labelWithString: "")
-    let statusTimerField = NSTextField(labelWithString: "")
+    let statusBitmapRenderer = StatusItemBitmapRenderer()
 
     let codexGreen = NSColor(srgbRed: 0.08, green: 0.72, blue: 0.48, alpha: 1)
     let codexWhite = NSColor.white
@@ -380,6 +384,8 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     override init() {
         super.init()
+
+        statusItem.autosaveName = "io.github.pg408.codexstatusbar.status-item"
 
         let defaults = UserDefaults.standard
         if defaults.object(forKey: "showTimer") != nil {
@@ -403,7 +409,6 @@ final class StatusController: NSObject, NSMenuDelegate {
         if let button = statusItem.button {
             button.imageScaling = .scaleProportionallyDown
             button.toolTip = "Codex Status Bar"
-            installStatusSubviews(in: button)
         }
 
         render(state: .idle, label: "", startedAt: 0)
@@ -415,7 +420,14 @@ final class StatusController: NSObject, NSMenuDelegate {
         RunLoop.main.add(timer, forMode: .common)
         pollTimer = timer
         tick()
+        scheduleInitialStatusAppearanceRefresh()
         scheduleStartupHookRepair()
+    }
+
+    func scheduleInitialStatusAppearanceRefresh() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            self?.applyTitle()
+        }
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -430,8 +442,11 @@ final class StatusController: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         sessionMenuItems.removeAll()
-        reloadSessions()
-        refreshEffectiveSessionStates()
+        _ = reloadSessions()
+        refreshThreadMetadata()
+        applyArchivedThreadOverlay()
+        let codexRunning = codexDesktopProcessExists()
+        refreshEffectiveSessionStates(codexRunning: codexRunning)
 
         addSessionsSection(to: menu)
 
@@ -614,14 +629,62 @@ final class StatusController: NSObject, NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
+    var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
+    }
+
     func tick() {
-        reloadSessions()
-        refreshThreadMetadata()
-        applyArchivedThreadOverlay()
-        evaluate()
-        evaluateAutoExit()
-        if menuIsOpen {
-            refreshOpenMenuRows()
+        let now = Date().timeIntervalSince1970
+        let sessionsChanged = reloadSessions()
+        let activeElapsedSecond = showTimer ? currentElapsedSeconds() : nil
+        let activeTimerSecondChanged = PollingRules.secondChanged(
+            current: activeElapsedSecond,
+            previous: lastObservedActiveElapsedSecond
+        )
+        lastObservedActiveElapsedSecond = activeElapsedSecond
+
+        let menuSecond = menuIsOpen ? Int(now) : nil
+        let menuTimerSecondChanged = PollingRules.secondChanged(
+            current: menuSecond,
+            previous: lastObservedMenuSecond
+        )
+        lastObservedMenuSecond = menuSecond
+
+        let maintenanceDue = PollingRules.maintenanceIsDue(
+            now: now,
+            previous: lastMaintenanceTickAt,
+            interval: maintenanceInterval
+        )
+        if maintenanceDue {
+            lastMaintenanceTickAt = now
+        }
+
+        let decision = PollingRules.decision(
+            sessionsChanged: sessionsChanged,
+            activeTimerSecondChanged: activeTimerSecondChanged,
+            menuTimerSecondChanged: menuTimerSecondChanged,
+            maintenanceDue: maintenanceDue,
+            menuIsOpen: menuIsOpen
+        )
+        guard decision.shouldEvaluate || decision.shouldRefreshMetadata ||
+                decision.shouldRefreshMenu || decision.shouldRunMaintenance else {
+            return
+        }
+
+        if decision.shouldRefreshMetadata {
+            refreshThreadMetadata()
+            applyArchivedThreadOverlay()
+        }
+
+        let codexRunning = codexDesktopProcessExists(now: now)
+        if decision.shouldEvaluate {
+            evaluate(codexRunning: codexRunning)
+        }
+        if decision.shouldRunMaintenance {
+            evaluateAutoExit(codexRunning: codexRunning)
+        }
+        if decision.shouldRefreshMenu {
+            refreshOpenMenuRows(codexRunning: codexRunning)
         }
     }
 
@@ -629,23 +692,28 @@ final class StatusController: NSObject, NSMenuDelegate {
         ((try? FileManager.default.contentsOfDirectory(atPath: stateDir)) ?? []).filter { $0.hasSuffix(".json") }
     }
 
-    func reloadSessions() {
+    @discardableResult
+    func reloadSessions() -> Bool {
         let files = stateFileNames()
         if files.isEmpty {
-            loadLegacyStateIfNeeded()
+            let changed = loadLegacyStateIfNeeded()
+            let hadMetadata = !threadMetadata.isEmpty
             threadMetadata.removeAll()
-            return
+            return changed || hadMetadata
         }
 
+        var changed = false
         if sessions.keys.contains("legacy-state") {
             sessions["legacy-state"] = nil
             legacyMTime = .distantPast
+            changed = true
         }
 
         let present = Set(files)
         for key in Array(fileMTimes.keys) where !present.contains(key) {
             fileMTimes[key] = nil
             sessions[(key as NSString).deletingPathExtension] = nil
+            changed = true
         }
 
         let fm = FileManager.default
@@ -658,11 +726,14 @@ final class StatusController: NSObject, NSMenuDelegate {
             guard let data = fm.contents(atPath: fullPath),
                   let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 removeCorruptSessionFile(file)
+                changed = true
                 continue
             }
             let id = (file as NSString).deletingPathExtension
             sessions[id] = Session(json: object, id: id)
+            changed = true
         }
+        return changed
     }
 
     func refreshThreadMetadata() {
@@ -734,17 +805,19 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
     }
 
-    func loadLegacyStateIfNeeded() {
+    @discardableResult
+    func loadLegacyStateIfNeeded() -> Bool {
         let fm = FileManager.default
         guard let attrs = try? fm.attributesOfItem(atPath: legacyStatePath),
               let mtime = attrs[.modificationDate] as? Date else {
+            let changed = !sessions.isEmpty || !fileMTimes.isEmpty || legacyMTime != .distantPast
             sessions.removeAll()
             fileMTimes.removeAll()
             legacyMTime = .distantPast
-            return
+            return changed
         }
 
-        guard mtime != legacyMTime else { return }
+        guard mtime != legacyMTime else { return false }
         legacyMTime = mtime
         fileMTimes.removeAll()
         sessions.removeAll()
@@ -752,11 +825,12 @@ final class StatusController: NSObject, NSMenuDelegate {
            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             sessions["legacy-state"] = Session(json: object, id: "legacy-state")
         }
+        return true
     }
 
-    func evaluate() {
-        refreshEffectiveSessionStates()
-        cleanupDeadSessions()
+    func evaluate(codexRunning: Bool) {
+        refreshEffectiveSessionStates(codexRunning: codexRunning)
+        cleanupDeadSessions(codexRunning: codexRunning)
 
         let displaySessions = sessions.values.filter { !isArchivedThread($0) }
         guard let lead = displaySessions.max(by: { left, right in
@@ -799,9 +873,8 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
     }
 
-    func refreshEffectiveSessionStates() {
+    func refreshEffectiveSessionStates(codexRunning: Bool) {
         let now = Date().timeIntervalSince1970
-        let codexRunning = codexDesktopProcessExists()
         for id in Array(sessions.keys) {
             guard var session = sessions[id] else { continue }
             session.effectiveState = effectiveState(for: session, now: now, codexRunning: codexRunning)
@@ -829,9 +902,8 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
     }
 
-    func cleanupDeadSessions() {
+    func cleanupDeadSessions(codexRunning: Bool) {
         let now = Date().timeIntervalSince1970
-        let codexRunning = codexDesktopProcessExists()
         for session in sessions.values {
             if isArchivedThread(session) { continue }
             if shouldRemoveSession(session, now: now, codexRunning: codexRunning) {
@@ -869,7 +941,6 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func visibleMenuSessions() -> [Session] {
-        refreshEffectiveSessionStates()
         let now = Date().timeIntervalSince1970
         let ordered = sessions.values.filter { !isArchivedThread($0) }.sorted { left, right in
             let leftPriority = priority(of: left.effectiveState)
@@ -926,8 +997,8 @@ final class StatusController: NSObject, NSMenuDelegate {
         return project.isEmpty ? "Other" : project
     }
 
-    func refreshOpenMenuRows() {
-        refreshEffectiveSessionStates()
+    func refreshOpenMenuRows(codexRunning: Bool) {
+        refreshEffectiveSessionStates(codexRunning: codexRunning)
         for (item, id) in sessionMenuItems {
             guard let session = sessions[id], let row = item.view as? SessionRowView else { continue }
             configureSessionRow(row, session)
@@ -1231,7 +1302,16 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
     }
 
-    func codexDesktopProcessExists() -> Bool {
+    func codexDesktopProcessExists(now: TimeInterval = Date().timeIntervalSince1970) -> Bool {
+        var cache = codexDesktopProcessCache
+        let result = cache.resolve(now: now, ttl: maintenanceInterval) { [unowned self] in
+            self.detectCodexDesktopProcess()
+        }
+        codexDesktopProcessCache = cache
+        return result
+    }
+
+    func detectCodexDesktopProcess() -> Bool {
         NSWorkspace.shared.runningApplications.contains { application in
             if application.bundleIdentifier == "com.openai.codex" {
                 return true
@@ -1243,9 +1323,9 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
     }
 
-    func evaluateAutoExit() {
+    func evaluateAutoExit(codexRunning: Bool) {
         guard ProcessInfo.processInfo.environment["CODEX_STATUSBAR_DISABLE_AUTO_EXIT"] != "1" else { return }
-        if codexDesktopProcessExists() || hasLiveSession() {
+        if codexRunning || hasLiveSession() {
             notNeededSince = nil
             return
         }
@@ -1381,7 +1461,6 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         statusItem.isVisible = true
         frameIndex = 0
-        statusIconView.image = icon(for: state, frame: frameIndex)
         applyTitle()
     }
 
@@ -1406,33 +1485,80 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func applyTitle() {
         guard let button = statusItem.button else { return }
-        installStatusSubviews(in: button)
         guard activeState != .idle && activeState != .done else {
-            statusItem.length = NSStatusItem.squareLength
-            button.image = icon(for: activeState, frame: frameIndex)
-            button.imagePosition = .imageOnly
-            hideStatusSubviews()
+            applyIconOnlyStatus(to: button)
             return
         }
 
         let timer = currentStatusTimer()
         if !showStatusText && !showTimer {
-            statusItem.length = NSStatusItem.squareLength
-            button.image = icon(for: activeState, frame: frameIndex)
-            button.imagePosition = .imageOnly
-            hideStatusSubviews()
+            applyIconOnlyStatus(to: button)
             return
         }
 
-        let layout = statusTitleLayout()
+        let label = showStatusText ? activeLabel : ""
+        let displayedTimer = showTimer ? timer : ""
+        let layout = statusTitleLayout(label: label, timer: displayedTimer)
+        let height = max(button.bounds.height, NSStatusItem.squareLength)
+        let appearanceName = button.effectiveAppearance.name.rawValue
+        let content = StatusItemBitmapContent(
+            size: NSSize(width: layout.itemWidth, height: height),
+            icon: icon(for: activeState, frame: frameIndex),
+            iconRect: NSRect(x: statusIconLeftInset,
+                             y: (height - statusIconWidth) / 2,
+                             width: statusIconWidth,
+                             height: statusIconWidth),
+            label: label,
+            labelRect: NSRect(x: layout.textX,
+                              y: statusVerticalInset,
+                              width: layout.textWidth,
+                              height: height - statusVerticalInset * 2),
+            timer: displayedTimer,
+            timerRect: NSRect(x: layout.timerX,
+                              y: statusVerticalInset,
+                              width: layout.timerWidth,
+                              height: height - statusVerticalInset * 2),
+            font: statusTitleFont(),
+            textColor: .labelColor
+        )
+        let cacheKey = [
+            activeState.rawValue,
+            label,
+            displayedTimer,
+            String(Int(layout.itemWidth)),
+            String(Int(height)),
+            iconStyle.rawValue,
+            selectedPetId,
+            activeIconWarning ? "warning" : "normal",
+            appearanceName,
+        ].joined(separator: "|")
+
         statusItem.length = layout.itemWidth
-        button.image = nil
-        button.attributedTitle = NSAttributedString(string: "")
         button.title = ""
-        button.imagePosition = .noImage
-        applyStatusSubviewLayout(label: showStatusText ? activeLabel : "",
-                                 timer: showTimer ? timer : "",
-                                 layout: layout)
+        button.attributedTitle = NSAttributedString(string: "")
+        button.effectiveAppearance.performAsCurrentDrawingAppearance {
+            button.image = statusBitmapRenderer.image(cacheKey: cacheKey, content: content)
+        }
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleNone
+        applyAccessibility(to: button, label: label, timer: displayedTimer)
+    }
+
+    func applyIconOnlyStatus(to button: NSStatusBarButton) {
+        statusItem.length = NSStatusItem.squareLength
+        button.title = ""
+        button.attributedTitle = NSAttributedString(string: "")
+        button.image = icon(for: activeState, frame: frameIndex)
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleProportionallyDown
+        applyAccessibility(to: button, label: "", timer: "")
+    }
+
+    func applyAccessibility(to button: NSStatusBarButton, label: String, timer: String) {
+        let stateLabel = label.isEmpty ? activeState.rawValue.capitalized : label
+        let value = timer.isEmpty ? stateLabel : "\(stateLabel), \(timer)"
+        button.setAccessibilityLabel("Codex Status Bar")
+        button.setAccessibilityValue(value)
     }
 
     struct StatusTitleLayout {
@@ -1443,18 +1569,16 @@ final class StatusController: NSObject, NSMenuDelegate {
         let timerWidth: CGFloat
     }
 
-    func statusTitleLayout() -> StatusTitleLayout {
-        let hasText = showStatusText
-        let hasTimer = showTimer
-        let maxTextWidth = hasText ? measuredMaxStatusTextWidth(for: activeLabel) : 0
-        let maxTimerWidth = hasTimer ? measuredTimerWidth(for: currentElapsedSeconds()) : 0
+    func statusTitleLayout(label: String, timer: String) -> StatusTitleLayout {
+        let hasText = !label.isEmpty
+        let hasTimer = !timer.isEmpty
         let iconX = statusIconLeftInset
         let iconRight = iconX + statusIconWidth
         let textX = iconRight + (hasText ? statusIconTextGap : 0)
-        let textWidth = maxTextWidth
+        let textWidth = hasText ? ceil(measuredTextWidth(label)) : 0
         let timerGap = hasText ? statusTextTimerGap : statusIconTimerGap
         let timerX = hasTimer ? (hasText ? textX + textWidth + timerGap : iconRight + timerGap) : 0
-        let timerWidth = maxTimerWidth
+        let timerWidth = hasTimer ? ceil(measuredTextWidth(timer)) + statusTimerSafetyPadding : 0
         let contentRight: CGFloat
 
         if hasTimer {
@@ -1471,62 +1595,6 @@ final class StatusController: NSObject, NSMenuDelegate {
                                  textWidth: textWidth,
                                  timerX: timerX,
                                  timerWidth: timerWidth)
-    }
-
-    func installStatusSubviews(in button: NSStatusBarButton) {
-        if statusIconView.superview !== button {
-            statusIconView.imageScaling = .scaleProportionallyDown
-            button.addSubview(statusIconView)
-        }
-        if statusTextField.superview !== button {
-            statusTextField.font = statusTitleFont()
-            statusTextField.textColor = .labelColor
-            statusTextField.alignment = .left
-            statusTextField.lineBreakMode = .byClipping
-            statusTextField.isBezeled = false
-            statusTextField.drawsBackground = false
-            button.addSubview(statusTextField)
-        }
-        if statusTimerField.superview !== button {
-            statusTimerField.font = statusTitleFont()
-            statusTimerField.textColor = .labelColor
-            statusTimerField.alignment = .right
-            statusTimerField.lineBreakMode = .byClipping
-            statusTimerField.isBezeled = false
-            statusTimerField.drawsBackground = false
-            button.addSubview(statusTimerField)
-        }
-    }
-
-    func applyStatusSubviewLayout(label: String, timer: String, layout: StatusTitleLayout) {
-        statusIconView.isHidden = false
-        statusTextField.isHidden = !showStatusText
-        statusTimerField.isHidden = !showTimer
-        statusTextField.stringValue = label
-        statusTimerField.stringValue = timer
-
-        let height = max(statusItem.button?.bounds.height ?? NSStatusItem.squareLength, NSStatusItem.squareLength)
-        let textHeight = height - statusVerticalInset * 2
-        statusIconView.frame = NSRect(x: statusIconLeftInset,
-                                      y: (height - statusIconWidth) / 2,
-                                      width: statusIconWidth,
-                                      height: statusIconWidth)
-        statusTextField.frame = NSRect(x: layout.textX,
-                                       y: statusVerticalInset,
-                                       width: layout.textWidth,
-                                       height: textHeight)
-        statusTimerField.frame = NSRect(x: layout.timerX,
-                                        y: statusVerticalInset,
-                                        width: layout.timerWidth,
-                                        height: textHeight)
-    }
-
-    func hideStatusSubviews() {
-        statusIconView.isHidden = true
-        statusTextField.isHidden = true
-        statusTimerField.isHidden = true
-        statusTextField.stringValue = ""
-        statusTimerField.stringValue = ""
     }
 
     func statusTitleFont() -> NSFont {
