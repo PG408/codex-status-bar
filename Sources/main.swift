@@ -1198,9 +1198,17 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func isCodexDesktopProcess(pid: Int32) -> Bool {
-        let command = processCommand(pid: pid)
-        return command.contains("/Applications/Codex.app/")
-            || command.contains("Codex.app/Contents/Resources/codex app-server")
+        guard pid > 0 else { return false }
+        var cache = desktopSessionProcessCaches[pid] ?? TimedBooleanCache()
+        let result = cache.resolve(
+            now: Date().timeIntervalSince1970,
+            ttl: maintenanceInterval
+        ) { [unowned self] in
+            let command = self.processCommand(pid: pid)
+            return SessionStateRules.isDesktopHostCommand(command)
+        }
+        desktopSessionProcessCaches[pid] = cache
+        return result
     }
 
     func processCommand(pid: Int32) -> String {
@@ -1319,7 +1327,10 @@ final class StatusController: NSObject, NSMenuDelegate {
             if application.bundleURL?.path.contains("/Codex.app") == true {
                 return true
             }
-            return application.localizedName == "Codex"
+            if application.bundleURL?.path.contains("/ChatGPT.app") == true {
+                return true
+            }
+            return application.localizedName == "Codex" || application.localizedName == "ChatGPT"
         }
     }
 
@@ -1350,39 +1361,28 @@ final class StatusController: NSObject, NSMenuDelegate {
             isDesktop: isDesktop,
             codexRunning: codexRunning,
             hasLivePid: hasLivePid,
-            interruptedByUser: transcriptShowsUserInterrupt(session.transcript),
+            transcriptTerminalState: transcriptTerminalState(
+                session.transcript,
+                after: session.ts
+            ),
             now: now
         ))
         return State(rawValue: state) ?? session.state
     }
 
-    func transcriptShowsUserInterrupt(_ path: String) -> Bool {
-        guard !path.isEmpty, let line = lastTurnLine(ofFileAt: path) else { return false }
-        return TranscriptStateRules.lineShowsUserInterrupt(line)
+    func transcriptTerminalState(_ path: String, after stateTimestamp: Double) -> TranscriptTerminalState {
+        guard !path.isEmpty, let tail = transcriptTail(ofFileAt: path) else { return .none }
+        return TranscriptStateRules.terminalState(in: tail, after: stateTimestamp)
     }
 
-    func lastTurnLine(ofFileAt path: String) -> String? {
+    func transcriptTail(ofFileAt path: String) -> String? {
         guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
         defer { try? handle.close() }
         let size = (try? handle.seekToEnd()) ?? 0
-        let chunk: UInt64 = 8192
+        let chunk: UInt64 = 64 * 1024
         try? handle.seek(toOffset: size > chunk ? size - chunk : 0)
-        guard let data = try? handle.readToEnd(),
-              let text = String(data: data, encoding: .utf8) else { return nil }
-        return text
-            .split(separator: "\n")
-            .reversed()
-            .map(String.init)
-            .first { line in
-                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return false }
-                return !trimmed.contains("\"type\":\"system\"") &&
-                    !trimmed.contains("\"type\":\"away_summary\"") &&
-                    !trimmed.contains("\"type\":\"last-prompt\"") &&
-                    !trimmed.contains("\"type\":\"ai-title\"") &&
-                    !trimmed.contains("\"type\":\"mode\"") &&
-                    !trimmed.contains("\"type\":\"permission-mode\"")
-            }
+        guard let data = try? handle.readToEnd() else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     func priority(of state: State) -> Int {

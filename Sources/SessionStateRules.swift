@@ -7,7 +7,7 @@ struct SessionStateRuleInput {
     let isDesktop: Bool
     let codexRunning: Bool
     let hasLivePid: Bool
-    let interruptedByUser: Bool
+    let transcriptTerminalState: TranscriptTerminalState
     let now: Double
 }
 
@@ -20,8 +20,15 @@ enum SessionStateRules {
     static func effectiveState(_ input: SessionStateRuleInput) -> String {
         let state = input.state
 
-        if ["thinking", "tool", "compacting", "permission", "waiting"].contains(state), input.interruptedByUser {
-            return "idle"
+        if ["thinking", "tool", "compacting", "permission", "waiting"].contains(state) {
+            switch input.transcriptTerminalState {
+            case .completed:
+                return "done"
+            case .interrupted:
+                return "idle"
+            case .none:
+                break
+            }
         }
 
         if input.isDesktop, !input.codexRunning {
@@ -48,6 +55,13 @@ enum SessionStateRules {
 
     static func isLongRunningTool(state: String, ts: Double, now: Double) -> Bool {
         state == "tool" && ts > 0 && now - ts > longRunningToolAfter
+    }
+
+    static func isDesktopHostCommand(_ command: String) -> Bool {
+        command.contains("/Applications/Codex.app/") ||
+            command.contains("/Applications/ChatGPT.app/") ||
+            command.contains("Codex.app/Contents/Resources/codex") ||
+            command.contains("ChatGPT.app/Contents/Resources/codex")
     }
 
     static func shouldRemoveSession(

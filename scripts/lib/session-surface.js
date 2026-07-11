@@ -45,8 +45,8 @@ function terminalAppName(termProgram) {
 }
 
 function isCodexDesktopCommand(command) {
-  return /Codex\.app\/Contents\/Resources\/codex app-server/.test(command)
-    || /\/Applications\/Codex\.app\//.test(command);
+  return /(?:Codex|ChatGPT)\.app\/Contents\/Resources\/codex(?:\s|$)/.test(command)
+    || /\/Applications\/(?:Codex|ChatGPT)\.app\//.test(command);
 }
 
 function processCommandForPid(pid) {

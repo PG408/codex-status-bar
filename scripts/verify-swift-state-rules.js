@@ -27,16 +27,39 @@ func assertBool(_ actual: Bool, _ expected: Bool, _ label: String) {
     }
 }
 
+func assertTerminal(
+    _ actual: TranscriptTerminalState,
+    _ expected: TranscriptTerminalState,
+    _ label: String
+) {
+    if actual != expected {
+        fputs("FAIL \\(label): expected \\(expected), got \\(actual)\\n", stderr)
+        exit(1)
+    }
+}
+
 @main
 struct VerifyStateRules {
     static func main() {
         let now = 10_000.0
-        let interruptedLine = #"{"timestamp":"2026-06-30T05:17:42.067Z","type":"event_msg","payload":{"type":"turn_aborted","turn_id":"turn-1","reason":"interrupted","completed_at":1782796662,"duration_ms":3398}}"#
-        let taskStartedLine = #"{"timestamp":"2026-06-30T05:18:05.174Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-2","started_at":1782796685}}"#
+        let completedTail = [
+            #"{"timestamp":"1970-01-01T02:46:30Z","type":"event_msg","payload":{"type":"task_started","started_at":9990}}"#,
+            #"{"timestamp":"1970-01-01T02:46:35Z","type":"event_msg","payload":{"type":"task_complete","completed_at":9995}}"#,
+        ].joined(separator: "\\n")
+        let resumedTail = completedTail + "\\n" +
+            #"{"timestamp":"1970-01-01T02:46:38Z","type":"event_msg","payload":{"type":"task_started","started_at":9998}}"#
+        let interruptedTail = #"{"timestamp":"1970-01-01T02:46:36Z","type":"event_msg","payload":{"type":"turn_aborted","reason":"interrupted","completed_at":9996}}"#
+        assertTerminal(TranscriptStateRules.terminalState(in: completedTail, after: 9_980), .completed, "task_complete after state timestamp ends the turn")
+        assertTerminal(TranscriptStateRules.terminalState(in: interruptedTail, after: 9_980), .interrupted, "turn_aborted after state timestamp ends the turn")
+        assertTerminal(TranscriptStateRules.terminalState(in: resumedTail, after: 9_980), .none, "newer task_started supersedes an older completion")
+        assertTerminal(TranscriptStateRules.terminalState(in: completedTail, after: 9_999), .none, "completion before state timestamp is ignored")
 
-        assertBool(TranscriptStateRules.lineShowsUserInterrupt(interruptedLine), true, "turn_aborted interrupted event is a user interrupt")
-        assertBool(TranscriptStateRules.lineShowsUserInterrupt(taskStartedLine), false, "task_started event is not a user interrupt")
-        assertBool(TranscriptStateRules.lineShowsUserInterrupt("interrupted by user"), true, "legacy interrupted marker remains supported")
+        assertBool(SessionStateRules.isDesktopHostCommand(
+            "/Applications/ChatGPT.app/Contents/Resources/codex -c features.code_mode_host=true app-server"
+        ), true, "ChatGPT app-server is desktop process evidence")
+        assertBool(SessionStateRules.isDesktopHostCommand(
+            "/usr/local/bin/codex"
+        ), false, "CLI codex process is not desktop process evidence")
 
         assertEqual(SessionStateRules.effectiveState(SessionStateRuleInput(
             state: "tool",
@@ -45,7 +68,7 @@ struct VerifyStateRules {
             isDesktop: false,
             codexRunning: false,
             hasLivePid: true,
-            interruptedByUser: false,
+            transcriptTerminalState: .none,
             now: now
         )), "tool", "tool remains tool before long-running threshold even when turn is old")
 
@@ -56,7 +79,7 @@ struct VerifyStateRules {
             isDesktop: false,
             codexRunning: false,
             hasLivePid: true,
-            interruptedByUser: false,
+            transcriptTerminalState: .none,
             now: now
         )), "tool", "long-running tool keeps the persisted tool state")
 
@@ -79,7 +102,7 @@ struct VerifyStateRules {
             isDesktop: false,
             codexRunning: false,
             hasLivePid: true,
-            interruptedByUser: false,
+            transcriptTerminalState: .none,
             now: now
         )), "thinking", "PostToolUse thinking is not rewritten as long-running")
 
@@ -90,7 +113,7 @@ struct VerifyStateRules {
             isDesktop: false,
             codexRunning: false,
             hasLivePid: true,
-            interruptedByUser: true,
+            transcriptTerminalState: .interrupted,
             now: now
         )), "idle", "interrupted thinking becomes idle")
 
@@ -101,7 +124,7 @@ struct VerifyStateRules {
             isDesktop: false,
             codexRunning: false,
             hasLivePid: true,
-            interruptedByUser: true,
+            transcriptTerminalState: .interrupted,
             now: now
         )), "idle", "interrupted tool becomes idle")
 
@@ -112,7 +135,7 @@ struct VerifyStateRules {
             isDesktop: true,
             codexRunning: true,
             hasLivePid: false,
-            interruptedByUser: false,
+            transcriptTerminalState: .none,
             now: now
         )), "waiting", "stale desktop active session becomes waiting")
 
@@ -123,7 +146,7 @@ struct VerifyStateRules {
             isDesktop: true,
             codexRunning: false,
             hasLivePid: false,
-            interruptedByUser: false,
+            transcriptTerminalState: .none,
             now: now
         )), "idle", "desktop session becomes idle when Codex app is gone")
 
@@ -134,9 +157,20 @@ struct VerifyStateRules {
             isDesktop: false,
             codexRunning: false,
             hasLivePid: false,
-            interruptedByUser: false,
+            transcriptTerminalState: .none,
             now: now
         )), "idle", "stale CLI active session without live pid becomes idle")
+
+        assertEqual(SessionStateRules.effectiveState(SessionStateRuleInput(
+            state: "thinking",
+            startedAt: now - 60,
+            ts: now - 60,
+            isDesktop: true,
+            codexRunning: true,
+            hasLivePid: false,
+            transcriptTerminalState: .completed,
+            now: now
+        )), "done", "transcript completion ends active desktop state when Stop hook is missing")
 
         assertBool(SessionStateRules.shouldRemoveSession(
             state: "tool",

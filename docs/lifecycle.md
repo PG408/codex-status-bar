@@ -52,7 +52,7 @@ This means a new CLI or Desktop hook can bring the status bar back after crash, 
 Swift treats `state.d/<session_id>.json` as display state, not as permanent storage.
 
 - A CLI session can use its hook parent `pid` as supporting liveness evidence.
-- A Desktop session is not considered live merely because `Codex.app` is still running.
+- A Desktop session is not considered live merely because the `Codex.app` or `ChatGPT.app` host is still running.
 - A Desktop `SessionEnd` marks that session `done`; Codex Desktop process exit removes remaining Desktop session files as cleanup.
 - A corrupt or unparsable session file is removed.
 - Old `pid == 0` files are retained only temporarily and pruned after the orphan timeout.

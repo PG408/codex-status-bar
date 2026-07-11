@@ -52,7 +52,7 @@ Both writers use the same surface resolver. Resolution order is:
 1. explicit payload fields: `entrypoint`, `entry_point`, `term_program`, or `termProgram`
 2. explicit environment override: `CODEX_STATUSBAR_ENTRYPOINT` or `CODEX_ENTRYPOINT`
 3. terminal environment: `TERM_PROGRAM` implies `entrypoint: "cli"`
-4. process evidence: a hook parent process under `Codex.app` implies `entrypoint: "codex-desktop"`
+4. process evidence: a hook parent process under `Codex.app` or `ChatGPT.app` implies `entrypoint: "codex-desktop"`
 5. previous state for the same session
 6. `unknown`
 
