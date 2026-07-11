@@ -12,7 +12,8 @@ final class SessionRowView: NSView {
     private let timerW: CGFloat = 74
     private let maxNameW: CGFloat = 230
     private let nameX: CGFloat = 30
-    private let textY: CGFloat = 6
+    private let textH: CGFloat = 16
+    private var textY: CGFloat { (rowH - textH) / 2 }
     private var hovered = false
     private var badgeNormal: NSImage?
     private var badgeSelected: NSImage?
@@ -33,7 +34,7 @@ final class SessionRowView: NSView {
         nameField.font = .menuFont(ofSize: 0)
         nameField.textColor = .labelColor
         nameField.lineBreakMode = .byTruncatingTail
-        nameField.frame = NSRect(x: nameX, y: textY, width: 150, height: 16)
+        nameField.frame = NSRect(x: nameX, y: textY, width: 150, height: textH)
         nameField.autoresizingMask = [.maxXMargin]
         addSubview(nameField)
 
@@ -79,7 +80,7 @@ final class SessionRowView: NSView {
             timerField.frame = NSRect(x: badgeLeft - timerGap - timerW,
                                       y: textY,
                                       width: timerW,
-                                      height: 16)
+                                      height: textH)
             nameField.frame.size.width = min(maxNameW, max(70, timerField.frame.minX - nameField.frame.minX - 8))
         } else {
             timerField.isHidden = true
@@ -234,25 +235,9 @@ final class StatusController: NSObject, NSMenuDelegate {
     let statusIconLeftInset: CGFloat = 1
     let statusIconTextGap: CGFloat = 2
     let statusIconTimerGap: CGFloat = 2
-    let statusTextTimerGap: CGFloat = 2
+    let statusTextTimerGap: CGFloat = 6
     let statusTimerSafetyPadding: CGFloat = 1
     let statusVerticalInset: CGFloat = 2
-    let normalStatusLabels = [
-        "Thinking",
-        "Using tool",
-        "Running cmd",
-        "Editing",
-        "Reading",
-        "Searching",
-        "Browsing",
-        "Web search",
-        "Planning",
-        "Compacting",
-        "Subagent",
-        "Waiting",
-    ]
-    let permissionStatusLabels = ["Awaiting permission"]
-    let subagentPermissionStatusLabels = ["Subagent permission"]
 
     var stateDir: String {
         ProcessInfo.processInfo.environment["CODEX_STATUSBAR_STATE_DIR"] ?? defaultStateDir
@@ -518,6 +503,10 @@ final class StatusController: NSObject, NSMenuDelegate {
         let resetItem = NSMenuItem(title: "Reset Status", action: #selector(resetStatus), keyEquivalent: "")
         resetItem.target = self
         menu.addItem(resetItem)
+
+        let versionItem = NSMenuItem(title: "Version \(appVersion)", action: nil, keyEquivalent: "")
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
 
         menu.addItem(.separator())
 
@@ -1605,39 +1594,6 @@ final class StatusController: NSObject, NSMenuDelegate {
         [
             .font: statusTitleFont(),
         ]
-    }
-
-    func measuredMaxStatusTextWidth(for label: String) -> CGFloat {
-        ceil(statusWidthGroupLabels(for: label).map { measuredTextWidth($0) }.max() ?? 0)
-    }
-
-    func statusWidthGroupLabels(for label: String) -> [String] {
-        switch normalizedStatusLabel(label) {
-        case "Subagent permission":
-            return subagentPermissionStatusLabels
-        case "Awaiting permission":
-            return permissionStatusLabels
-        default:
-            return normalStatusLabels
-        }
-    }
-
-    func measuredTimerWidth(for elapsedSeconds: Int?) -> CGFloat {
-        guard let elapsedSeconds else { return 0 }
-        return ceil(measuredTextWidth(elapsed(timerWidthSampleSeconds(for: elapsedSeconds)))) + statusTimerSafetyPadding
-    }
-
-    func timerWidthSampleSeconds(for elapsedSeconds: Int) -> Int {
-        if elapsedSeconds < 60 {
-            return 59
-        }
-        if elapsedSeconds < 10 * 60 {
-            return 9 * 60 + 59
-        }
-        if elapsedSeconds < 60 * 60 {
-            return 59 * 60 + 59
-        }
-        return 999 * 60 + 59
     }
 
     func measuredTextWidth(_ text: String) -> CGFloat {
