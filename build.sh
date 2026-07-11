@@ -30,8 +30,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key><string>io.github.pg408.codexstatusbar</string>
   <key>CFBundleExecutable</key><string>CodexStatusBar</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
-  <key>CFBundleVersion</key><string>0.1.2</string>
-  <key>CFBundleShortVersionString</key><string>0.1.2</string>
+  <key>CFBundleVersion</key><string>0.1.3</string>
+  <key>CFBundleShortVersionString</key><string>0.1.3</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>LSUIElement</key><true/>
