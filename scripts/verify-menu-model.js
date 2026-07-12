@@ -16,6 +16,9 @@ const lifecycleWriter = fs.readFileSync("scripts/codex-lifecycle-writer.js", "ut
 const buildScript = fs.readFileSync("build.sh", "utf8");
 const runScript = fs.readFileSync("script/build_and_run.sh", "utf8");
 const visualStatusDocs = fs.readFileSync("docs/visual-status.md", "utf8");
+const buildBundleIdentifier = buildScript.match(
+  /<key>CFBundleIdentifier<\/key><string>([^<]+)<\/string>/,
+)?.[1] ?? "";
 
 const checks = [
   ["Swift defines SessionRowView", swift.includes("final class SessionRowView")],
@@ -80,7 +83,7 @@ const checks = [
   ["Swift passes one Codex liveness snapshot through evaluation", swift.includes("func evaluate(codexRunning: Bool)") && swift.includes("func cleanupDeadSessions()") && swift.includes("func evaluateAutoExit(codexRunning: Bool)")],
   ["Swift refreshes open menu rows at most once per wall second", swift.includes("menuTimerSecondChanged") && swift.includes("lastObservedMenuSecond")],
   ["Swift uses standard status item menu binding", swift.includes("statusItem.menu = statusMenu") && !swift.includes("@objc func statusItemClicked")],
-  ["Swift assigns a stable unique status item identity", swift.includes('statusItem.autosaveName = "io.github.pg408.codexstatusbar.status-item"')],
+  ["Swift assigns a stable bundle-independent status item identity", swift.includes('private static let mainStatusItemAutosaveName = "main-status-item-v1"') && swift.includes("statusItem.autosaveName = Self.mainStatusItemAutosaveName") && !swift.includes("io.github.pg408.codexstatusbar.status-item")],
   ["Swift keeps image-only status item visible", swift.includes("statusItem.length = NSStatusItem.squareLength") && swift.includes("statusItem.isVisible = true")],
   ["Swift sizes the active status item from displayed content", swift.includes("statusTitleLayout(label: label, timer: displayedTimer)") && swift.includes("statusItem.length = layout.itemWidth") && !swift.includes("statusItem.length = NSStatusItem.variableLength")],
   ["Swift measures the current status text and timer", swift.includes("measuredTextWidth(label)") && swift.includes("measuredTextWidth(timer)") && swift.includes("statusTimerSafetyPadding")],
@@ -104,7 +107,8 @@ const checks = [
   ["Swift auto exit avoids full process-table scans", swift.includes("NSWorkspace.shared.runningApplications") && !swift.includes('process.arguments = ["-axo", "command="]')],
   ["Swift avoids wait-before-read pipe deadlocks", !swift.includes("process.waitUntilExit()\n            let data = pipe.fileHandleForReading.readDataToEndOfFile()")],
   ["Run script avoids forced duplicate open", !fs.readFileSync("script/build_and_run.sh", "utf8").includes("open -g -n")],
-  ["Build and run scripts use the stable bundle identifier", buildScript.includes("io.github.pg408.codexstatusbar") && runScript.includes('BUNDLE_ID="io.github.pg408.codexstatusbar"') && !buildScript.includes("com.local.codexstatusbar") && !runScript.includes("com.local.codexstatusbar")],
+  ["Build script owns the stable bundle identifier", buildBundleIdentifier === ["gaobo", "gl", "codex-status-bar"].join(".") && buildScript.split(buildBundleIdentifier).length === 2 && !runScript.includes(buildBundleIdentifier)],
+  ["Run script reads the built bundle identifier after building", runScript.includes('BUNDLE_ID="$(/usr/libexec/PlistBuddy -c \'Print :CFBundleIdentifier\' "$APP_BUNDLE/Contents/Info.plist")"') && runScript.indexOf("./build.sh") < runScript.indexOf("BUNDLE_ID=") && runScript.includes('subsystem == \\"$BUNDLE_ID\\"')],
   ["Docs mention Sessions menu", readme.includes("Sessions Menu") || docs.includes("Sessions Menu")],
   ["Docs mention hide idle behavior", readme.includes("Hide idle sessions") || docs.includes("Hide idle sessions")],
   ["Docs mention click focus boundary", readme.includes("click") || docs.includes("click")],

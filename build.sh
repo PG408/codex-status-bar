@@ -27,7 +27,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <dict>
   <key>CFBundleName</key><string>CodexStatusBar</string>
   <key>CFBundleDisplayName</key><string>Codex Status Bar</string>
-  <key>CFBundleIdentifier</key><string>io.github.pg408.codexstatusbar</string>
+  <key>CFBundleIdentifier</key><string>gaobo.gl.codex-status-bar</string>
   <key>CFBundleExecutable</key><string>CodexStatusBar</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleVersion</key><string>0.1.3</string>

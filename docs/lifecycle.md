@@ -43,7 +43,7 @@ After `SessionStart` or any visible activity event writes a session state file, 
 CodexStatusBar.app
 ```
 
-The path is resolved from `CODEX_STATUSBAR_APP_PATH`, from bundled resources, or from the local `build/CodexStatusBar.app` development path. Before opening, the launcher checks whether that same app bundle is already running, so an old same-name process does not suppress launch of the current app.
+The path is resolved from `CODEX_STATUSBAR_APP_PATH`, from bundled resources, or from the local `build/CodexStatusBar.app` development path. Before inspecting processes, the launcher verifies the app directory, `Contents/Info.plist`, and the expected executable. It then compares canonical executable paths against `CodexStatusBar.app/Contents/MacOS/CodexStatusBar`. Only an exact path match suppresses launch; an old same-name process, a prefix-similar path, or another app bundle does not suppress the target. Canonical comparison also treats a symbolic link to the same bundle as the same running app and preserves paths containing spaces.
 
 This means a new CLI or Desktop hook can bring the status bar back after crash, force quit, or automatic exit. No LaunchAgent, login item, or background daemon is installed.
 

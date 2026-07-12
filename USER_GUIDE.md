@@ -141,6 +141,7 @@ node scripts/verify-phase4-lifecycle.js
 node scripts/verify-session-surface.js
 node scripts/verify-menu-model.js
 node scripts/verify-swift-state-rules.js
+node scripts/verify-preference-migration.js
 ./build.sh
 ./script/build_and_run.sh --verify
 ```

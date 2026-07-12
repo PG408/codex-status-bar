@@ -107,7 +107,10 @@ function fakeOpenBin(dir) {
 
 function phaseEnv(dir, extra = {}) {
   const fakeApp = path.join(dir, "CodexStatusBar.app");
-  fs.mkdirSync(fakeApp, { recursive: true });
+  const fakeExecutable = path.join(fakeApp, "Contents", "MacOS", "CodexStatusBarNotRunningForPhase4Test");
+  fs.mkdirSync(path.dirname(fakeExecutable), { recursive: true });
+  fs.writeFileSync(fakeExecutable, "");
+  fs.writeFileSync(path.join(fakeApp, "Contents", "Info.plist"), "<plist><dict/></plist>");
   const { openBin, openLog } = fakeOpenBin(dir);
   return {
     env: {
@@ -198,6 +201,8 @@ run("launcher does not reopen when the same app bundle is already running", () =
   const openLog = path.join(dir, "open.log");
   const openBin = path.join(dir, "open");
   fs.mkdirSync(path.join(fakeApp, "Contents", "MacOS"), { recursive: true });
+  fs.writeFileSync(path.join(fakeApp, "Contents", "MacOS", "CodexStatusBar"), "");
+  fs.writeFileSync(path.join(fakeApp, "Contents", "Info.plist"), "<plist><dict/></plist>");
   fs.writeFileSync(openBin, `#!/bin/sh\necho "$@" >> "${openLog}"\nexit 0\n`);
   fs.chmodSync(openBin, 0o755);
 
@@ -213,6 +218,10 @@ run("launcher does not reopen when the same app bundle is already running", () =
 
 run("Swift liveness, stale cleanup, interrupt, and auto-exit rules pass", () => {
   spawnNode([path.join(repoRoot, "scripts", "verify-swift-state-rules.js")]);
+});
+
+run("Swift preference migration rules pass", () => {
+  spawnNode([path.join(repoRoot, "scripts", "verify-preference-migration.js")]);
 });
 
 run("Swift source contains startup repair, cleanup, and auto-exit lifecycle hooks", () => {

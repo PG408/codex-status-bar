@@ -214,6 +214,35 @@ function inferAppPath(options = {}) {
   return path.resolve(resourceDir, "..", "build", "CodexStatusBar.app");
 }
 
+function canonicalPath(candidate, options = {}) {
+  if (!candidate) return "";
+  const absolutePath = path.resolve(String(candidate));
+  const realpath = options.realpath || fs.realpathSync.native;
+  try {
+    return path.normalize(realpath(absolutePath));
+  } catch {
+    return path.normalize(absolutePath);
+  }
+}
+
+function statusBarExecutablePath(appPath, processName) {
+  return path.join(appPath, "Contents", "MacOS", processName);
+}
+
+function statusBarProcessName(options = {}) {
+  return options.processName || process.env.CODEX_STATUSBAR_PROCESS_NAME || "CodexStatusBar";
+}
+
+function executablePathsEqual(left, right, options = {}) {
+  const leftValue = String(left || "").trim();
+  const rightValue = String(right || "").trim();
+  if (!leftValue || !rightValue) return false;
+  const leftPath = path.normalize(path.resolve(leftValue));
+  const rightPath = path.normalize(path.resolve(rightValue));
+  if (leftPath === rightPath) return true;
+  return canonicalPath(leftPath, options) === canonicalPath(rightPath, options);
+}
+
 function traceLaunch(event) {
   const tracePath = process.env.CODEX_STATUSBAR_LAUNCH_TRACE;
   if (!tracePath) return;
@@ -235,7 +264,7 @@ function runningProcessCommands(processName, timeoutMs) {
       .filter(Boolean)
       .map((pid) => {
         try {
-          return cp.execFileSync("/bin/ps", ["-p", pid, "-o", "command="], {
+          return cp.execFileSync("/bin/ps", ["-p", pid, "-o", "comm="], {
             encoding: "utf8",
             stdio: ["ignore", "pipe", "ignore"],
             timeout: timeoutMs,
@@ -251,16 +280,17 @@ function runningProcessCommands(processName, timeoutMs) {
 }
 
 function statusBarProcessRunning(options = {}) {
-  const processName = options.processName || process.env.CODEX_STATUSBAR_PROCESS_NAME || "CodexStatusBar";
+  const processName = statusBarProcessName(options);
   const timeoutMs = Number(options.timeoutMs || 1000);
+  if (!options.appPath) return false;
+  const targetExecutable = statusBarExecutablePath(options.appPath, processName);
 
   if (typeof options.runningProcessCommands === "function") {
-    return options.runningProcessCommands().length > 0;
+    return options.runningProcessCommands()
+      .some((candidate) => executablePathsEqual(candidate, targetExecutable, options));
   }
-  if (typeof options.processRunning === "function") {
-    return Boolean(options.processRunning());
-  }
-  return runningProcessCommands(processName, timeoutMs).length > 0;
+  return runningProcessCommands(processName, timeoutMs)
+    .some((candidate) => executablePathsEqual(candidate, targetExecutable, options));
 }
 
 function ensureStatusBarRunning(options = {}) {
@@ -268,13 +298,29 @@ function ensureStatusBarRunning(options = {}) {
     traceLaunch({ ok: false, reason: "disabled" });
     return false;
   }
-  if (statusBarProcessRunning(options)) {
-    traceLaunch({ ok: false, reason: "already_running" });
+  const inferredAppPath = inferAppPath(options);
+  const absoluteAppPath = inferredAppPath ? path.resolve(inferredAppPath) : "";
+  const exists = options.exists || fs.existsSync;
+  if (!absoluteAppPath || !exists(absoluteAppPath)) {
+    traceLaunch({ ok: false, reason: "missing_app", appPath: absoluteAppPath });
     return false;
   }
-  const appPath = inferAppPath(options);
-  if (!appPath || !fs.existsSync(appPath)) {
-    traceLaunch({ ok: false, reason: "missing_app", appPath });
+  const appPath = path.normalize(absoluteAppPath);
+  const processName = statusBarProcessName(options);
+  const executablePath = statusBarExecutablePath(appPath, processName);
+  const infoPlistPath = path.join(appPath, "Contents", "Info.plist");
+  if (!exists(executablePath) || !exists(infoPlistPath)) {
+    traceLaunch({
+      ok: false,
+      reason: "incomplete_app",
+      appPath,
+      executablePath,
+      infoPlistPath,
+    });
+    return false;
+  }
+  if (statusBarProcessRunning({ ...options, appPath })) {
+    traceLaunch({ ok: false, reason: "already_running", appPath });
     return false;
   }
   const openBin = options.openBin || process.env.CODEX_STATUSBAR_OPEN_BIN || "/usr/bin/open";

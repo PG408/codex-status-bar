@@ -135,6 +135,13 @@ open -g build/CodexStatusBar.app
 node scripts/install-codex-statusbar.js
 ```
 
+The current bundle identifier is `gaobo.gl.codex-status-bar`. On the first
+launch after upgrading from an older identifier, the app copies supported
+appearance and behavior preferences. It intentionally does not copy macOS
+status-item visibility or position records. Together with the new identifiers,
+this is intended to register a fresh menu bar item without inheriting the old
+Control Center association.
+
 Sessions that were already open may not reload changed hook commands until they
 send a new prompt or a new Codex session starts.
 

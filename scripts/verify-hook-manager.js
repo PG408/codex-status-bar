@@ -33,6 +33,15 @@ function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "codex-statusbar-hooks-"));
 }
 
+function makeAppBundle(appPath, processName = "CodexStatusBar") {
+  const executablePath = path.join(appPath, "Contents", "MacOS", processName);
+  fs.mkdirSync(path.dirname(executablePath), { recursive: true });
+  fs.writeFileSync(executablePath, "");
+  fs.chmodSync(executablePath, 0o755);
+  fs.writeFileSync(path.join(appPath, "Contents", "Info.plist"), "<plist><dict/></plist>");
+  return executablePath;
+}
+
 function commandPaths(settings) {
   const commands = [];
   for (const groups of Object.values(settings.hooks || {})) {
@@ -185,7 +194,7 @@ run("SessionStart hook launches status bar app after writing state", () => {
     const openLog = path.join(dir, "open.log");
     const openBin = path.join(dir, "open");
     const launchTrace = path.join(dir, "launch.jsonl");
-    fs.mkdirSync(appPath, { recursive: true });
+    makeAppBundle(appPath, "CodexStatusBarNotRunningForTest");
     fs.writeFileSync(openBin, `#!/bin/sh\necho "$@" >> "${openLog}"\n`);
     fs.chmodSync(openBin, 0o755);
 
@@ -217,7 +226,7 @@ run("activity hook launches status bar app after writing state", () => {
     const openLog = path.join(dir, "open.log");
     const openBin = path.join(dir, "open");
     const launchTrace = path.join(dir, "launch.jsonl");
-    fs.mkdirSync(appPath, { recursive: true });
+    makeAppBundle(appPath, "CodexStatusBarNotRunningForTest");
     fs.writeFileSync(openBin, `#!/bin/sh\necho "$@" >> "${openLog}"\n`);
     fs.chmodSync(openBin, 0o755);
 
@@ -242,13 +251,13 @@ run("activity hook launches status bar app after writing state", () => {
   }
 });
 
-run("ensureStatusBarRunning skips open when status bar process already exists", () => {
+run("ensureStatusBarRunning skips open when the target executable is running", () => {
   const dir = makeTempDir();
   try {
     const appPath = path.join(dir, "CodexStatusBar.app");
+    const executablePath = makeAppBundle(appPath);
     const openLog = path.join(dir, "open.log");
     const openBin = path.join(dir, "open");
-    fs.mkdirSync(appPath, { recursive: true });
     fs.writeFileSync(openBin, `#!/bin/sh\necho "$@" >> "${openLog}"\n`);
     fs.chmodSync(openBin, 0o755);
 
@@ -256,7 +265,7 @@ run("ensureStatusBarRunning skips open when status bar process already exists", 
     const launched = ensureStatusBarRunning({
       appPath,
       openBin,
-      processRunning: () => true,
+      runningProcessCommands: () => [executablePath],
     });
     assert.equal(launched, false);
     assert.equal(fs.existsSync(openLog), false);
@@ -265,14 +274,15 @@ run("ensureStatusBarRunning skips open when status bar process already exists", 
   }
 });
 
-run("ensureStatusBarRunning skips open when any status bar process exists", () => {
+run("ensureStatusBarRunning opens when only a different bundle executable is running", () => {
   const dir = makeTempDir();
   try {
     const appPath = path.join(dir, "Current", "CodexStatusBar.app");
     const otherPath = path.join(dir, "Old", "CodexStatusBar.app", "Contents", "MacOS", "CodexStatusBar");
     const openLog = path.join(dir, "open.log");
     const openBin = path.join(dir, "open");
-    fs.mkdirSync(appPath, { recursive: true });
+    makeAppBundle(appPath);
+    makeAppBundle(path.join(dir, "Old", "CodexStatusBar.app"));
     fs.writeFileSync(openBin, `#!/bin/sh\necho "$@" >> "${openLog}"\n`);
     fs.chmodSync(openBin, 0o755);
 
@@ -282,8 +292,129 @@ run("ensureStatusBarRunning skips open when any status bar process exists", () =
       openBin,
       runningProcessCommands: () => [otherPath],
     });
+    assert.equal(launched, true);
+    assert.ok(fs.readFileSync(openLog, "utf8").includes(appPath));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+run("ensureStatusBarRunning does not confuse a path prefix with the target", () => {
+  const dir = makeTempDir();
+  try {
+    const appPath = path.join(dir, "CodexStatusBar.app");
+    const similarAppPath = path.join(dir, "CodexStatusBar.app.backup");
+    const similarExecutable = makeAppBundle(similarAppPath);
+    const openLog = path.join(dir, "open.log");
+    const openBin = path.join(dir, "open");
+    makeAppBundle(appPath);
+    fs.writeFileSync(openBin, `#!/bin/sh\necho "$@" >> "${openLog}"\n`);
+    fs.chmodSync(openBin, 0o755);
+
+    const { ensureStatusBarRunning } = require("./lib/hook-manager");
+    const launched = ensureStatusBarRunning({
+      appPath,
+      openBin,
+      runningProcessCommands: () => [similarExecutable],
+    });
+    assert.equal(launched, true);
+    assert.ok(fs.readFileSync(openLog, "utf8").includes(appPath));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+run("ensureStatusBarRunning matches canonical executable paths through a symlink", () => {
+  const dir = makeTempDir();
+  try {
+    const realAppPath = path.join(dir, "Versioned", "CodexStatusBar.app");
+    const linkedAppPath = path.join(dir, "Current", "CodexStatusBar.app");
+    const executablePath = makeAppBundle(realAppPath);
+    fs.mkdirSync(path.dirname(linkedAppPath), { recursive: true });
+    fs.symlinkSync(realAppPath, linkedAppPath);
+
+    const { ensureStatusBarRunning } = require("./lib/hook-manager");
+    const launched = ensureStatusBarRunning({
+      appPath: linkedAppPath,
+      runningProcessCommands: () => [executablePath],
+    });
     assert.equal(launched, false);
-    assert.equal(fs.existsSync(openLog), false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+run("ensureStatusBarRunning matches an executable path containing spaces", () => {
+  const dir = makeTempDir();
+  try {
+    const appPath = path.join(dir, "Current Build", "Codex Status Bar.app");
+    const executablePath = makeAppBundle(appPath);
+
+    const { ensureStatusBarRunning } = require("./lib/hook-manager");
+    const launched = ensureStatusBarRunning({
+      appPath,
+      runningProcessCommands: () => [executablePath],
+    });
+    assert.equal(launched, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+run("ensureStatusBarRunning respects a configured process name", () => {
+  const dir = makeTempDir();
+  try {
+    const appPath = path.join(dir, "CodexStatusBarTest.app");
+    const processName = "CodexStatusBarTest";
+    const executablePath = makeAppBundle(appPath, processName);
+
+    const { ensureStatusBarRunning } = require("./lib/hook-manager");
+    const launched = ensureStatusBarRunning({
+      appPath,
+      processName,
+      runningProcessCommands: () => [executablePath],
+    });
+    assert.equal(launched, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+run("ensureStatusBarRunning validates the app path before checking processes", () => {
+  const dir = makeTempDir();
+  try {
+    let processCheckCalled = false;
+    const { ensureStatusBarRunning } = require("./lib/hook-manager");
+    const launched = ensureStatusBarRunning({
+      appPath: path.join(dir, "Missing", "CodexStatusBar.app"),
+      runningProcessCommands: () => {
+        processCheckCalled = true;
+        return [];
+      },
+    });
+    assert.equal(launched, false);
+    assert.equal(processCheckCalled, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+run("ensureStatusBarRunning rejects an incomplete app bundle", () => {
+  const dir = makeTempDir();
+  try {
+    const appPath = path.join(dir, "Incomplete", "CodexStatusBar.app");
+    fs.mkdirSync(appPath, { recursive: true });
+    let processCheckCalled = false;
+    const { ensureStatusBarRunning } = require("./lib/hook-manager");
+    const launched = ensureStatusBarRunning({
+      appPath,
+      runningProcessCommands: () => {
+        processCheckCalled = true;
+        return [];
+      },
+    });
+    assert.equal(launched, false);
+    assert.equal(processCheckCalled, false);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

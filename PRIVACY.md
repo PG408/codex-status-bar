@@ -13,6 +13,9 @@ status data to the project maintainer.
 | `~/.codex/.codex-global-state.json` | Side Chat detection through local `prompt-history` keys. |
 | `~/.codex/state_5.sqlite` | Best-effort archived-thread metadata for Codex Desktop sessions. |
 | `~/.codex/hooks.json` | Hook installation and repair. |
+| `~/Library/Preferences/gaobo.gl.codex-status-bar.plist` | Current local appearance and behavior preferences. |
+| `~/Library/Preferences/io.github.pg408.codexstatusbar.plist` | Legacy preferences consulted during the one-time allowlisted migration. |
+| `~/Library/Preferences/com.local.codexstatusbar.plist` | Earlier legacy preferences consulted during the one-time allowlisted migration. |
 
 ## Local Data Written By The App
 
@@ -22,6 +25,7 @@ status data to the project maintainer.
 | `~/.codex/statusbar/app.log` | Local render log for diagnostics. |
 | `~/.codex/statusbar/hooks-discovery.jsonl` | Debug-only hook schema log when `CODEX_STATUSBAR_DEBUG=1`. |
 | `~/.codex/hooks.json` | Hook configuration updated by the installer or uninstaller. |
+| `~/Library/Preferences/gaobo.gl.codex-status-bar.plist` | Current local appearance and behavior preferences and the migration marker. |
 
 ## Data Not Intentionally Stored Or Transmitted
 

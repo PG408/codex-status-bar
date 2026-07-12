@@ -1,6 +1,36 @@
 import Cocoa
 import Darwin
 
+private enum LegacyPreferenceMigrator {
+    private static let legacyDomainNames = [
+        "io.github.pg408.codexstatusbar",
+        "com.local.codexstatusbar",
+    ]
+
+    static func migrateIfNeeded(defaults: UserDefaults = .standard,
+                                currentDomainName: String? = Bundle.main.bundleIdentifier) {
+        guard let currentDomainName else { return }
+        let currentDomain = defaults.persistentDomain(forName: currentDomainName) ?? [:]
+        guard PreferenceMigrationRules.migrationRequired(currentDomain: currentDomain) else {
+            return
+        }
+        let legacyDomains = legacyDomainNames
+            .filter { $0 != currentDomainName }
+            .compactMap { defaults.persistentDomain(forName: $0) }
+        let plan = PreferenceMigrationRules.makePlan(
+            legacyDomains: legacyDomains,
+            currentDomain: currentDomain
+        )
+        guard plan.shouldWriteMarker else { return }
+
+        for key in plan.valuesToWrite.keys.sorted() {
+            defaults.set(plan.valuesToWrite[key], forKey: key)
+        }
+        defaults.set(PreferenceMigrationRules.migrationVersion,
+                     forKey: PreferenceMigrationRules.markerKey)
+    }
+}
+
 final class SessionRowView: NSView {
     let id: String
     var onClick: (() -> Void)?
@@ -195,6 +225,8 @@ final class MenuSectionHeaderView: NSView {
 }
 
 final class StatusController: NSObject, NSMenuDelegate {
+    private static let mainStatusItemAutosaveName = "main-status-item-v1"
+
     enum State: String {
         case idle
         case done
@@ -372,7 +404,8 @@ final class StatusController: NSObject, NSMenuDelegate {
     override init() {
         super.init()
 
-        statusItem.autosaveName = "io.github.pg408.codexstatusbar.status-item"
+        statusItem.autosaveName = Self.mainStatusItemAutosaveName
+        LegacyPreferenceMigrator.migrateIfNeeded()
 
         let defaults = UserDefaults.standard
         if defaults.object(forKey: "showTimer") != nil {
