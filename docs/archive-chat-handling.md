@@ -37,12 +37,12 @@ The overlay is best-effort. If SQLite is missing, locked, unreadable, or the tab
 
 ## Undo Archive
 
-The state file is not deleted when a thread is archived. This preserves enough local display state for undo:
+The state file is retained for up to 7 days when a thread is archived. This preserves enough local display state for undo during the retention window:
 
 ```text
 archive:
   archived = 1
-  state file retained
+  state file retained for up to 7 days
   active state rewritten to done
   hidden from lead/menu
 
@@ -52,7 +52,7 @@ undo archive:
   session may reappear as done/resting
 ```
 
-Visibility after undo continues to use `Hide idle sessions`.
+Visibility after undo continues to use `Hide idle sessions`. Undo after the 7-day state retention window cannot restore a state file that has already been cleaned up.
 
 ## Boundaries
 

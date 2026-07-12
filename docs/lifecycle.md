@@ -49,16 +49,17 @@ This means a new CLI or Desktop hook can bring the status bar back after crash, 
 
 ## Session Liveness
 
-Swift treats `state.d/<session_id>.json` as display state, not as permanent storage.
+Swift treats `state.d/<session_id>.json` as recoverable display state with a fixed 7-day retention window.
 
 - A CLI session can use its hook parent `pid` as supporting liveness evidence.
 - A Desktop session is not considered live merely because the `Codex.app` or `ChatGPT.app` host is still running.
-- A Desktop `SessionEnd` marks that session `done`; Codex Desktop process exit removes remaining Desktop session files as cleanup.
+- A Desktop `SessionEnd` marks that session `done`; Codex Desktop process exit changes effective liveness but does not delete retained state immediately.
 - A corrupt or unparsable session file is removed.
-- Old `pid == 0` files are retained only temporarily and pruned after the orphan timeout.
+- CLI PID loss changes effective liveness but does not delete retained state immediately.
+- Session files older than 7 days are removed independently of the `Hide idle sessions` menu setting.
 - `PreToolUse` keeps a session in `tool` until `PostToolUse` writes the next explicit state. After three minutes from `PreToolUse`, Swift changes only the icon tint as a warning and leaves the persisted state, label, and timer semantics unchanged.
 - If Codex records a transcript `turn_aborted` event with `reason: "interrupted"`, Swift treats active `thinking`, `tool`, `compacting`, `permission`, or `waiting` as `idle`. This covers manual termination paths that do not reliably deliver a `Stop` hook.
-- Live active sessions are not aged out by a short quiet timeout; `thinking` and `compacting` remain visible until an explicit next-state event, stop/end event, or surface liveness says otherwise. Resting sessions disappear according to the `Hide idle sessions` duration.
+- Live active sessions are not aged out by a short quiet timeout; `thinking` and `compacting` remain visible until an explicit next-state event, stop/end event, or surface liveness says otherwise. Resting sessions disappear from the menu according to `Hide idle sessions` while their state remains recoverable for 7 days.
 
 This keeps current sessions visible while preventing stale files from accumulating indefinitely.
 

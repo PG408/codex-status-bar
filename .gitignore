@@ -3,3 +3,4 @@
 /build
 /.codex
 /.tmp
+.github/hooks/dcg.json

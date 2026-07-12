@@ -14,8 +14,7 @@ struct SessionStateRuleInput {
 enum SessionStateRules {
     static let staleAfter: TimeInterval = 15 * 60
     static let longRunningToolAfter: TimeInterval = 3 * 60
-    static let idleSessionPruneAfter: TimeInterval = 30 * 60
-    static let orphanPruneAfter: TimeInterval = 2 * 60 * 60
+    static let sessionRetentionAfter: TimeInterval = 7 * 24 * 60 * 60
 
     static func effectiveState(_ input: SessionStateRuleInput) -> String {
         let state = input.state
@@ -65,37 +64,20 @@ enum SessionStateRules {
     }
 
     static func shouldRemoveSession(
-        state: String,
-        effectiveState: String,
-        pid: Int32,
-        pidAlive: Bool,
-        isDesktop: Bool,
-        codexRunning: Bool,
         ts: Double,
         now: Double,
-        restingSessionPruneAfter: TimeInterval = idleSessionPruneAfter
+        retentionAfter: TimeInterval = sessionRetentionAfter
+    ) -> Bool {
+        retentionAfter > 0 && ts > 0 && now - ts > retentionAfter
+    }
+
+    static func shouldHideSession(
+        effectiveState: String,
+        ts: Double,
+        now: Double,
+        visibilityAfter: TimeInterval
     ) -> Bool {
         let isResting = ["idle", "done", "waiting"].contains(effectiveState)
-
-        if isDesktop {
-            if !codexRunning {
-                return true
-            }
-            if restingSessionPruneAfter > 0, ts > 0, isResting, now - ts > restingSessionPruneAfter {
-                return true
-            }
-            return false
-        }
-
-        if pid > 0, !pidAlive {
-            if isResting {
-                return restingSessionPruneAfter > 0 && ts > 0 && now - ts > restingSessionPruneAfter
-            }
-            return true
-        }
-        if pid == 0, ts > 0, now - ts > orphanPruneAfter {
-            return true
-        }
-        return false
+        return visibilityAfter > 0 && isResting && now - ts > visibilityAfter
     }
 }

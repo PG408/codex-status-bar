@@ -74,7 +74,7 @@ After a successful `SessionStart` or visible activity write, the writer asks the
 | Event | Matcher | Writer behavior |
 |---|---:|---|
 | `SessionStart` | none | Creates `idle` session state with `started: false`. |
-| `SessionEnd` | none | Marks an existing session `done`, clears active turn metadata, and lets the menu retention setting decide when it disappears. |
+| `SessionEnd` | none | Marks an existing session `done`, clears active turn metadata, and retains the state file for up to 7 days. |
 | `UserPromptSubmit` | none | Updates main `thinking`, `Thinking`, a non-zero `startedAt`, `started: true`, and the incoming main `turnId`. During a subagent payload, updates that subagent as running instead. |
 | `PreToolUse` | `*` | If the payload matches the main active `turnId`, updates main `tool` and maps the tool name to a short label. Unknown tools use `Using tool`. During a subagent payload, updates that subagent as running without overriding a higher-priority main tool. |
 | `PostToolUse` | `*` | If the payload matches the main active `turnId`, returns main to `thinking` and preserves the timer. During a subagent payload, keeps that subagent running. |
@@ -129,7 +129,7 @@ Within the same priority tier, the most recent `ts` wins.
 
 A live main `thinking` or `compacting` session remains active until a matching `PostCompact` or main `Stop` updates main facts, `SessionEnd` marks the file complete, Swift detects a transcript `turn_aborted` event with `reason: "interrupted"`, or Swift determines that the owning surface is no longer alive. `SubagentStop` only removes subagent activity. A live main `tool` session remains `tool` until `PostToolUse`; after three minutes from `PreToolUse`, Swift changes only the icon tint as a warning and leaves the persisted state, label, and timer semantics unchanged.
 
-For liveness, CLI sessions may use the hook parent pid as supporting evidence. Desktop sessions do not use the Codex app pid to prove an individual session is still active, because the Desktop app process can outlive any one conversation. `SessionEnd` is the normal deletion path; Codex Desktop process exit is only a cleanup signal for Desktop session files.
+For liveness, CLI sessions may use the hook parent pid as supporting evidence. Desktop sessions do not use the Codex app pid to prove an individual session is still active, because the Desktop app process can outlive any one conversation. Liveness changes affect effective state without deleting the retained record; state files are age-pruned after 7 days.
 
 ## Replay Verification
 
@@ -165,7 +165,7 @@ node scripts/verify-phase4-lifecycle.js
 | Fixture | Coverage |
 |---|---|
 | `two-cli-sessions.json` | Two CLI sessions exist in parallel; permission outranks tool/thinking. |
-| `cli-desktop-parallel.json` | CLI and desktop sessions coexist; desktop permission request becomes lead and lifecycle end removes the file. |
+| `cli-desktop-parallel.json` | CLI and desktop sessions coexist; desktop permission request becomes lead and lifecycle end marks the session done. |
 | `stale-background-cannot-win.json` | Old same-session tool events and background sessions cannot displace a permission lead. |
 | `subagent-session.json` | `SubagentStart`, subagent-scoped prompt/tool/compact events, subagent permission, and `SubagentStop` update the corresponding session facts while keeping only the two Subagent labels visible. |
 | `subagent-main-stop-session.json` | Main `Stop` is the only session-level done signal and clears active subagent facts. |

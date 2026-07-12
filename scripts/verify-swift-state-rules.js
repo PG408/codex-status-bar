@@ -172,82 +172,52 @@ struct VerifyStateRules {
             now: now
         )), "done", "transcript completion ends active desktop state when Stop hook is missing")
 
+        let retention = SessionStateRules.sessionRetentionAfter
+        let retentionNow = retention + 10_000
         assertBool(SessionStateRules.shouldRemoveSession(
-            state: "tool",
-            effectiveState: "waiting",
-            pid: 123,
-            pidAlive: false,
-            isDesktop: true,
-            codexRunning: true,
-            ts: now - 901,
-            now: now
-        ), false, "desktop app alive does not delete stale active session immediately")
+            ts: retentionNow - retention + 1,
+            now: retentionNow
+        ), false, "session inside seven-day retention is retained")
 
         assertBool(SessionStateRules.shouldRemoveSession(
-            state: "tool",
-            effectiveState: "tool",
-            pid: 123,
-            pidAlive: false,
-            isDesktop: true,
-            codexRunning: false,
-            ts: now - 60,
-            now: now
-        ), true, "desktop app exit removes desktop session")
+            ts: retentionNow - retention - 1,
+            now: retentionNow
+        ), true, "session older than seven days is removed")
 
         assertBool(SessionStateRules.shouldRemoveSession(
-            state: "done",
+            ts: 0,
+            now: now
+        ), false, "session without a timestamp is not age-pruned")
+
+        let visibilityNow = 100_000.0
+        let fortyMinutesAgo = visibilityNow - 40 * 60
+        assertBool(SessionStateRules.shouldHideSession(
             effectiveState: "done",
-            pid: 123,
-            pidAlive: false,
-            isDesktop: true,
-            codexRunning: true,
-            ts: now - 301,
-            now: now
-        ), false, "completed desktop session is retained for the menu duration")
+            ts: fortyMinutesAgo,
+            now: visibilityNow,
+            visibilityAfter: 30 * 60
+        ), true, "forty-minute resting session is hidden by thirty-minute visibility")
 
-        assertBool(SessionStateRules.shouldRemoveSession(
-            state: "done",
+        assertBool(SessionStateRules.shouldHideSession(
             effectiveState: "done",
-            pid: 123,
-            pidAlive: false,
-            isDesktop: true,
-            codexRunning: true,
-            ts: now - 1801,
-            now: now
-        ), true, "completed desktop session is pruned after the menu duration")
+            ts: fortyMinutesAgo,
+            now: visibilityNow,
+            visibilityAfter: 60 * 60
+        ), false, "increasing visibility to one hour restores the session")
 
-        assertBool(SessionStateRules.shouldRemoveSession(
-            state: "tool",
-            effectiveState: "tool",
-            pid: 123,
-            pidAlive: false,
-            isDesktop: false,
-            codexRunning: false,
-            ts: now - 60,
-            now: now
-        ), true, "CLI session with dead pid is removed")
-
-        assertBool(SessionStateRules.shouldRemoveSession(
-            state: "done",
+        assertBool(SessionStateRules.shouldHideSession(
             effectiveState: "done",
-            pid: 123,
-            pidAlive: false,
-            isDesktop: false,
-            codexRunning: false,
-            ts: now - 301,
-            now: now
-        ), false, "completed CLI session with dead pid is retained for the menu duration")
+            ts: fortyMinutesAgo,
+            now: visibilityNow,
+            visibilityAfter: 24 * 60 * 60
+        ), false, "increasing visibility to twenty-four hours restores the session")
 
-        assertBool(SessionStateRules.shouldRemoveSession(
-            state: "tool",
-            effectiveState: "tool",
-            pid: 123,
-            pidAlive: true,
-            isDesktop: false,
-            codexRunning: false,
-            ts: now - 901,
-            now: now
-        ), false, "CLI session with live pid is retained")
+        assertBool(SessionStateRules.shouldHideSession(
+            effectiveState: "thinking",
+            ts: visibilityNow - 2 * 24 * 60 * 60,
+            now: visibilityNow,
+            visibilityAfter: 30 * 60
+        ), false, "active session is not hidden by resting visibility")
 
         print("PASS Swift state rules")
     }

@@ -338,7 +338,9 @@ final class StatusController: NSObject, NSMenuDelegate {
     var sessionMenuItems: [(item: NSMenuItem, id: String)] = []
 
     var hideIdleAfter: TimeInterval {
-        UserDefaults.standard.object(forKey: "hideIdleAfter") as? Double ?? 1800
+        let stored = UserDefaults.standard.object(forKey: "hideIdleAfter") as? Double ?? 1800
+        guard stored > 0 else { return SessionStateRules.sessionRetentionAfter }
+        return min(stored, SessionStateRules.sessionRetentionAfter)
     }
 
     var activeLabel = ""
@@ -453,7 +455,15 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         let hideParent = NSMenuItem(title: "Hide idle sessions", action: nil, keyEquivalent: "")
         let hideMenu = NSMenu()
-        for (title, seconds) in [("5 minutes", 300.0), ("15 minutes", 900.0), ("30 minutes", 1800.0), ("1 hour", 3600.0), ("Never", 0.0)] {
+        for (title, seconds) in [
+            ("5 minutes", 300.0),
+            ("15 minutes", 900.0),
+            ("30 minutes", 1800.0),
+            ("1 hour", 3600.0),
+            ("12 hours", 12 * 3600.0),
+            ("24 hours", 24 * 3600.0),
+            ("7 days", SessionStateRules.sessionRetentionAfter),
+        ] {
             let item = NSMenuItem(title: title, action: #selector(chooseHideIdle(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = seconds
@@ -819,7 +829,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func evaluate(codexRunning: Bool) {
         refreshEffectiveSessionStates(codexRunning: codexRunning)
-        cleanupDeadSessions(codexRunning: codexRunning)
+        cleanupDeadSessions()
 
         let displaySessions = sessions.values.filter { !isArchivedThread($0) }
         guard let lead = displaySessions.max(by: { left, right in
@@ -874,7 +884,6 @@ final class StatusController: NSObject, NSMenuDelegate {
     func cleanupSessionFilesOnStartup() {
         try? FileManager.default.createDirectory(atPath: stateDir, withIntermediateDirectories: true)
         let now = Date().timeIntervalSince1970
-        let codexRunning = codexDesktopProcessExists()
         let fm = FileManager.default
         for file in stateFileNames() {
             let fullPath = (stateDir as NSString).appendingPathComponent(file)
@@ -884,36 +893,26 @@ final class StatusController: NSObject, NSMenuDelegate {
                 continue
             }
             let session = Session(json: object, id: (file as NSString).deletingPathExtension)
-            if shouldRemoveSession(session, now: now, codexRunning: codexRunning) {
+            if shouldRemoveSession(session, now: now) {
                 removeDeadSession(session.id)
                 continue
             }
         }
     }
 
-    func cleanupDeadSessions(codexRunning: Bool) {
+    func cleanupDeadSessions() {
         let now = Date().timeIntervalSince1970
         for session in sessions.values {
-            if isArchivedThread(session) { continue }
-            if shouldRemoveSession(session, now: now, codexRunning: codexRunning) {
+            if shouldRemoveSession(session, now: now) {
                 removeDeadSession(session.id)
             }
         }
     }
 
-    func shouldRemoveSession(_ session: Session, now: Double, codexRunning: Bool) -> Bool {
-        let isDesktop = isDesktopSession(session)
-        let livePid = session.pid > 0 && pidAlive(session.pid)
+    func shouldRemoveSession(_ session: Session, now: Double) -> Bool {
         return SessionStateRules.shouldRemoveSession(
-            state: session.state.rawValue,
-            effectiveState: session.effectiveState.rawValue,
-            pid: session.pid,
-            pidAlive: livePid,
-            isDesktop: isDesktop,
-            codexRunning: codexRunning,
             ts: session.ts,
-            now: now,
-            restingSessionPruneAfter: hideIdleAfter
+            now: now
         )
     }
 
@@ -938,14 +937,15 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
 
         let filtered = ordered.filter { session in
-            let resting = priority(of: session.effectiveState) == 0
             if isHiddenSideChatMenuSession(session, now: now) {
                 return false
             }
-            return !(hideIdleAfter > 0 && resting && now - session.ts > hideIdleAfter)
-        }
-        if filtered.isEmpty, let fallback = ordered.first(where: { !isHiddenSideChatMenuSession($0, now: now) }) {
-            return [fallback]
+            return !SessionStateRules.shouldHideSession(
+                effectiveState: session.effectiveState.rawValue,
+                ts: session.ts,
+                now: now,
+                visibilityAfter: hideIdleAfter
+            )
         }
         return filtered
     }
