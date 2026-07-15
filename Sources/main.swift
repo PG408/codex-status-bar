@@ -312,6 +312,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         var state: State
         var label: String
         var tool: String
+        var sessionKind: String
         var threadName: String
         var project: String
         var sessionId: String
@@ -333,6 +334,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             self.state = State(rawValue: object["state"] as? String ?? "idle") ?? .idle
             self.label = object["label"] as? String ?? ""
             self.tool = object["tool"] as? String ?? ""
+            self.sessionKind = object["sessionKind"] as? String ?? ""
             self.threadName = object["threadName"] as? String ?? ""
             self.project = object["project"] as? String ?? ""
             self.sessionId = object["sessionId"] as? String ?? id
@@ -864,7 +866,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         refreshEffectiveSessionStates(codexRunning: codexRunning)
         cleanupDeadSessions()
 
-        let displaySessions = sessions.values.filter { !isArchivedThread($0) }
+        let displaySessions = sessions.values.filter { isDisplayableSession($0) }
         guard let lead = displaySessions.max(by: { left, right in
             let leftPriority = priority(of: left.effectiveState)
             let rightPriority = priority(of: right.effectiveState)
@@ -963,7 +965,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func visibleMenuSessions() -> [Session] {
         let now = Date().timeIntervalSince1970
-        let ordered = sessions.values.filter { !isArchivedThread($0) }.sorted { left, right in
+        let ordered = sessions.values.filter { isDisplayableSession($0) }.sorted { left, right in
             let leftPriority = priority(of: left.effectiveState)
             let rightPriority = priority(of: right.effectiveState)
             return leftPriority == rightPriority ? left.ts > right.ts : leftPriority > rightPriority
@@ -981,6 +983,10 @@ final class StatusController: NSObject, NSMenuDelegate {
             )
         }
         return filtered
+    }
+
+    func isDisplayableSession(_ session: Session) -> Bool {
+        !isArchivedThread(session) && session.sessionKind != "commit-message"
     }
 
     func isHiddenSideChatMenuSession(_ session: Session, now: Double) -> Bool {

@@ -1,0 +1,59 @@
+{
+  "name": "commit-message-session",
+  "description": "Internal commit-message sessions are classified and excluded from lead selection.",
+  "steps": [
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "user-session",
+        "turn_id": "user-turn",
+        "cwd": "/tmp/project",
+        "prompt": "Please review this change."
+      },
+      "expect": {
+        "sessions": {
+          "user-session": {
+            "state": "thinking",
+            "sessionKind": ""
+          }
+        },
+        "lead": "user-session"
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "commit-session",
+        "turn_id": "commit-turn",
+        "cwd": "/tmp/project",
+        "prompt": "Using the supplied git context below, generate a git commit message.\nWrite the result into the structured response field message.\nmessage must contain plain commit-message text only, not JSON, field labels, or code fences.\nCustom commit instructions for message content and formatting override the fallback rules below.\nMake 0 tool calls.\nBounds:\n- Keep the complete message under 4000 characters.\n- Keep the subject under 72 characters.\nFallback rules:\n- Generate a concise single-line subject.\n- Use an imperative verb first.\n- Do not add a scope prefix unless the context already clearly uses one.\n- Do not include markdown, quotes, or trailing punctuation.\n\nDiff context:\nCustom commit instructions...\nChanges:\ndiff --git a/a b/a"
+      },
+      "expect": {
+        "sessions": {
+          "commit-session": {
+            "state": "thinking",
+            "sessionKind": "commit-message"
+          }
+        },
+        "lead": "user-session"
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "session_id": "commit-session",
+        "turn_id": "commit-turn",
+        "cwd": "/tmp/project"
+      },
+      "expect": {
+        "sessions": {
+          "commit-session": {
+            "state": "done",
+            "sessionKind": "commit-message"
+          }
+        },
+        "lead": "user-session"
+      }
+    }
+  ]
+}

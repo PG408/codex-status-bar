@@ -4,6 +4,7 @@ const os = require("os");
 const path = require("path");
 const { ensureStatusBarRunning, parseAppPathArg } = require("./lib/hook-manager");
 const { latestThreadName } = require("./lib/session-index");
+const { sessionKindForPrompt } = require("./lib/session-kind");
 const { resolveSessionSurface } = require("./lib/session-surface");
 
 const event = process.argv[2] || "unknown";
@@ -265,6 +266,7 @@ function stateFor(payload, prev, facts, now) {
     label: visible.label,
     tool: visible.tool,
     activity: visible.activity,
+    sessionKind: sessionKindForPrompt(payload.prompt) || prev.sessionKind || "",
     threadName: latestThreadName(sessionId),
     project: basename(payload.cwd || payload.working_directory || payload.current_working_directory) || prev.project || "",
     sessionId,

@@ -70,7 +70,7 @@ function priority(session) {
 }
 
 function leadSessionId(sessions) {
-  const values = Object.values(sessions);
+  const values = Object.values(sessions).filter((session) => session.sessionKind !== "commit-message");
   if (values.length === 0) return "";
   values.sort((a, b) => {
     const pa = priority(a);
