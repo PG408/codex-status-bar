@@ -49,10 +49,33 @@ struct VerifyStateRules {
         let resumedTail = completedTail + "\\n" +
             #"{"timestamp":"1970-01-01T02:46:38Z","type":"event_msg","payload":{"type":"task_started","started_at":9998}}"#
         let interruptedTail = #"{"timestamp":"1970-01-01T02:46:36Z","type":"event_msg","payload":{"type":"turn_aborted","reason":"interrupted","completed_at":9996}}"#
+        let guardianTail = [
+            #"{"timestamp":"1970-01-01T02:46:29Z","type":"session_meta","payload":{"session_id":"parent","id":"guardian-child","parent_thread_id":"parent","source":{"subagent":{"other":"guardian"}},"thread_source":"subagent"}}"#,
+            #"{"timestamp":"1970-01-01T02:46:35Z","type":"event_msg","payload":{"type":"task_complete","completed_at":9995}}"#,
+        ].joined(separator: "\\n")
         assertTerminal(TranscriptStateRules.terminalState(in: completedTail, after: 9_980), .completed, "task_complete after state timestamp ends the turn")
         assertTerminal(TranscriptStateRules.terminalState(in: interruptedTail, after: 9_980), .interrupted, "turn_aborted after state timestamp ends the turn")
         assertTerminal(TranscriptStateRules.terminalState(in: resumedTail, after: 9_980), .none, "newer task_started supersedes an older completion")
         assertTerminal(TranscriptStateRules.terminalState(in: completedTail, after: 9_999), .none, "completion before state timestamp is ignored")
+        assertTerminal(TranscriptStateRules.terminalState(in: guardianTail, after: 9_980), .completed, "guardian completion remains available for subagent recovery")
+        assertBool(SessionStateRules.shouldRestoreMainPresentation(
+            activity: "subagent",
+            activeSubagentKey: "guardian-child",
+            transcriptSubagentKey: "guardian-child",
+            subagentTerminalState: .completed
+        ), true, "completed guardian restores the main presentation")
+        assertBool(SessionStateRules.shouldRestoreMainPresentation(
+            activity: "",
+            activeSubagentKey: "",
+            transcriptSubagentKey: "guardian-child",
+            subagentTerminalState: .completed
+        ), false, "main completion does not use subagent recovery")
+        assertBool(SessionStateRules.shouldRestoreMainPresentation(
+            activity: "subagent",
+            activeSubagentKey: "ordinary-agent",
+            transcriptSubagentKey: "guardian-child",
+            subagentTerminalState: .completed
+        ), false, "completed guardian does not hide another active subagent")
 
         assertBool(SessionStateRules.isDesktopHostCommand(
             "/Applications/ChatGPT.app/Contents/Resources/codex -c features.code_mode_host=true app-server"

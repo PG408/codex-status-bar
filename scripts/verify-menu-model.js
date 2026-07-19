@@ -69,7 +69,7 @@ const checks = [
   ["Writer keeps unknown tool fallback at event layer", writer.includes('labelForTool(toolName) || "Using tool"') && !writer.includes('return labels[toolName] || "Using tool"')],
   ["Writer derives display fields from single-session status facts", writer.includes("function deriveVisibleState") && writer.includes("statusFacts: facts")],
   ["Writer classifies commit-message sessions from the fixed prompt", writer.includes("sessionKindForPrompt(payload.prompt)") && fs.readFileSync("scripts/lib/session-kind.js", "utf8").includes("COMMIT_MESSAGE_PROMPT_PREFIX")],
-  ["Writer keeps subagent activity to two Subagent labels", writer.includes('"Subagent"') && writer.includes('"Subagent permission"') && !writer.includes('"Subagent running"') && !writer.includes('"Subagent awaiting permission"')],
+  ["Writer distinguishes Guardian from ordinary subagents", writer.includes('"Guardian"') && writer.includes('"Subagent"') && writer.includes('function subagentKindFor')],
   ["Writer recognizes subagent payload ownership", writer.includes("function isSubagentPayload") && writer.includes("payload.agent_id || payload.agent_type")],
   ["Writer does not treat SubagentStop as session Stop", writer.includes('case "SubagentStop"') && writer.includes("stopSubagent(facts, payload)") && !writer.includes('case "Stop":\n    case "SubagentStop"')],
   ["Writers persist session_index thread names", writer.includes("latestThreadName(sessionId)") && lifecycleWriter.includes("latestThreadName(sessionId)")],

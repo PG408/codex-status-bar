@@ -1,0 +1,3 @@
+{"timestamp":"2026-07-19T04:55:26.000Z","type":"session_meta","payload":{"session_id":"guardian-parent","id":"guardian-child","parent_thread_id":"guardian-parent","cwd":"/tmp/guardian-project","originator":"Codex Desktop","source":{"subagent":{"other":"guardian"}},"thread_source":"subagent"}}
+{"timestamp":"2026-07-19T04:55:26.100Z","type":"event_msg","payload":{"type":"task_started","started_at":1784436926}}
+{"timestamp":"2026-07-19T04:55:32.000Z","type":"event_msg","payload":{"type":"task_complete","completed_at":1784436932}}

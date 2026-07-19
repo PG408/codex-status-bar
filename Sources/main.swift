@@ -322,7 +322,15 @@ final class StatusController: NSObject, NSMenuDelegate {
         var entrypointSource: String
         var termProgram: String
         var focusTarget: FocusTarget
+        var activity: String
+        var activeSubagentKey: String
         var transcript: String
+        var subagentTranscript: String
+        var subagentTranscriptKey: String
+        var mainState: State
+        var mainLabel: String
+        var mainTool: String
+        var mainStartedAt: Double
         var started: Bool
         var startedAt: Double
         var ts: Double
@@ -344,7 +352,17 @@ final class StatusController: NSObject, NSMenuDelegate {
             self.entrypointSource = object["entrypointSource"] as? String ?? ""
             self.termProgram = object["termProgram"] as? String ?? object["term_program"] as? String ?? ""
             self.focusTarget = FocusTarget(object: object["focusTarget"] as? [String: Any])
+            self.activity = object["activity"] as? String ?? ""
+            self.activeSubagentKey = object["activeSubagentKey"] as? String ?? ""
             self.transcript = object["transcript"] as? String ?? object["transcript_path"] as? String ?? ""
+            self.subagentTranscript = object["subagentTranscript"] as? String ?? ""
+            self.subagentTranscriptKey = object["subagentTranscriptKey"] as? String ?? ""
+            let statusFacts = object["statusFacts"] as? [String: Any]
+            let mainFact = statusFacts?["main"] as? [String: Any]
+            self.mainState = State(rawValue: mainFact?["state"] as? String ?? self.state.rawValue) ?? self.state
+            self.mainLabel = mainFact?["label"] as? String ?? self.label
+            self.mainTool = mainFact?["tool"] as? String ?? self.tool
+            self.mainStartedAt = (mainFact?["startedAt"] as? NSNumber)?.doubleValue ?? 0
             self.started = object["started"] as? Bool ?? false
             self.startedAt = (object["startedAt"] as? NSNumber)?.doubleValue ?? 0
             self.ts = (object["ts"] as? NSNumber)?.doubleValue ?? 0
@@ -911,7 +929,27 @@ final class StatusController: NSObject, NSMenuDelegate {
         let now = Date().timeIntervalSince1970
         for id in Array(sessions.keys) {
             guard var session = sessions[id] else { continue }
-            session.effectiveState = effectiveState(for: session, now: now, codexRunning: codexRunning)
+            let subagentTerminalState = transcriptTerminalState(
+                session.subagentTranscript,
+                after: session.ts
+            )
+            let restoreMain = SessionStateRules.shouldRestoreMainPresentation(
+                activity: session.activity,
+                activeSubagentKey: session.activeSubagentKey,
+                transcriptSubagentKey: session.subagentTranscriptKey,
+                subagentTerminalState: subagentTerminalState
+            )
+            if restoreMain {
+                session.label = session.mainLabel
+                session.tool = session.mainTool
+                session.startedAt = session.mainStartedAt
+            }
+            session.effectiveState = effectiveState(
+                for: session,
+                state: restoreMain ? session.mainState : session.state,
+                now: now,
+                codexRunning: codexRunning
+            )
             sessions[id] = session
         }
     }
@@ -1380,10 +1418,19 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func effectiveState(for session: Session, now: Double, codexRunning: Bool) -> State {
+        effectiveState(for: session, state: session.state, now: now, codexRunning: codexRunning)
+    }
+
+    func effectiveState(
+        for session: Session,
+        state: State,
+        now: Double,
+        codexRunning: Bool
+    ) -> State {
         let isDesktop = isDesktopSession(session)
         let hasLivePid = !isDesktop && session.pid > 0 && pidAlive(session.pid)
         let state = SessionStateRules.effectiveState(SessionStateRuleInput(
-            state: session.state.rawValue,
+            state: state.rawValue,
             startedAt: session.startedAt,
             ts: session.ts,
             isDesktop: isDesktop,

@@ -16,6 +16,18 @@ enum SessionStateRules {
     static let longRunningToolAfter: TimeInterval = 3 * 60
     static let sessionRetentionAfter: TimeInterval = 7 * 24 * 60 * 60
 
+    static func shouldRestoreMainPresentation(
+        activity: String,
+        activeSubagentKey: String,
+        transcriptSubagentKey: String,
+        subagentTerminalState: TranscriptTerminalState
+    ) -> Bool {
+        guard activity == "subagent",
+              !activeSubagentKey.isEmpty,
+              activeSubagentKey == transcriptSubagentKey else { return false }
+        return subagentTerminalState == .completed || subagentTerminalState == .interrupted
+    }
+
     static func effectiveState(_ input: SessionStateRuleInput) -> String {
         let state = input.state
 

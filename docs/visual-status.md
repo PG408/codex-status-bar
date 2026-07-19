@@ -22,6 +22,8 @@ with the fallback labels below.
 | Waiting | `waiting` | `Waiting` | no | yellow | standard Codex icon | Stale active Desktop session fallback after the liveness rule marks it waiting. |
 | Subagent running | `thinking` | `Subagent` | yes | green | standard Codex icon | `SubagentStart` or subagent-scoped activity while no higher-priority main activity is visible. |
 | Subagent permission | `permission` | `Subagent permission` | no | red | Codex icon plus red status dot | Subagent-scoped `PermissionRequest`. |
+| Guardian review | `thinking` | `Guardian` | yes | green | standard Codex icon | An auto-review subagent identified by transcript metadata is active. |
+| Guardian permission | `permission` | `Guardian permission` | no | red | Codex icon plus red status dot | A permission request is scoped to the Guardian review subagent. |
 
 Color constants in the current Swift implementation:
 

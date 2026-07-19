@@ -1,0 +1,173 @@
+{
+  "name": "guardian-subagent-session",
+  "description": "Guardian transcript metadata maps internal activity to a subagent without replacing the parent transcript.",
+  "steps": [
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "guardian-parent",
+        "turn_id": "main-turn",
+        "cwd": "/tmp/guardian-project",
+        "transcript_fixture": "fixtures/transcripts/guardian-parent.jsonl"
+      },
+      "expect": {
+        "sessions": {
+          "guardian-parent": {
+            "state": "thinking",
+            "label": "Thinking",
+            "activity": "",
+            "turnId": "main-turn",
+            "transcript": "__ENDS_WITH__:fixtures/transcripts/guardian-parent.jsonl",
+            "statusFacts": {
+              "main": {
+                "state": "thinking",
+                "label": "Thinking",
+                "tool": "",
+                "turnId": "main-turn",
+                "startedAt": "__NUMBER__"
+              },
+              "subagents": {}
+            }
+          }
+        }
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "guardian-parent",
+        "turn_id": "guardian-turn",
+        "cwd": "/tmp/guardian-project",
+        "transcript_fixture": "fixtures/transcripts/guardian-subagent.jsonl"
+      },
+      "expect": {
+        "sessions": {
+          "guardian-parent": {
+            "state": "thinking",
+            "label": "Guardian",
+            "activity": "subagent",
+            "turnId": "main-turn",
+            "transcript": "__ENDS_WITH__:fixtures/transcripts/guardian-parent.jsonl",
+            "subagentTranscript": "__ENDS_WITH__:fixtures/transcripts/guardian-subagent.jsonl",
+            "statusFacts": {
+              "main": {
+                "state": "thinking",
+                "label": "Thinking",
+                "tool": "",
+                "turnId": "main-turn",
+                "startedAt": "__NUMBER__"
+              },
+              "subagents": {
+                "guardian-child": {
+                  "state": "running",
+                  "label": "Guardian",
+                  "kind": "guardian",
+                  "tool": "",
+                  "turnId": "guardian-turn",
+                  "startedAt": "__NUMBER__"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "guardian-parent",
+        "turn_id": "main-turn",
+        "cwd": "/tmp/guardian-project",
+        "tool_name": "Bash",
+        "transcript_fixture": "fixtures/transcripts/guardian-parent.jsonl"
+      },
+      "expect": {
+        "sessions": {
+          "guardian-parent": {
+            "state": "tool",
+            "label": "Running cmd",
+            "activity": "",
+            "activeSubagentKey": "",
+            "transcript": "__ENDS_WITH__:fixtures/transcripts/guardian-parent.jsonl",
+            "subagentTranscript": "__ENDS_WITH__:fixtures/transcripts/guardian-subagent.jsonl",
+            "subagentTranscriptKey": "guardian-child"
+          }
+        }
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "payload": {
+        "session_id": "guardian-parent",
+        "turn_id": "main-turn",
+        "cwd": "/tmp/guardian-project",
+        "tool_name": "Bash",
+        "transcript_fixture": "fixtures/transcripts/guardian-parent.jsonl"
+      },
+      "expect": {
+        "sessions": {
+          "guardian-parent": {
+            "state": "thinking",
+            "label": "Guardian",
+            "activity": "subagent",
+            "activeSubagentKey": "guardian-child",
+            "transcript": "__ENDS_WITH__:fixtures/transcripts/guardian-parent.jsonl",
+            "subagentTranscript": "__ENDS_WITH__:fixtures/transcripts/guardian-subagent.jsonl",
+            "subagentTranscriptKey": "guardian-child"
+          }
+        }
+      }
+    },
+    {
+      "event": "PermissionRequest",
+      "payload": {
+        "session_id": "guardian-parent",
+        "turn_id": "guardian-turn",
+        "cwd": "/tmp/guardian-project",
+        "transcript_fixture": "fixtures/transcripts/guardian-subagent.jsonl"
+      },
+      "expect": {
+        "sessions": {
+          "guardian-parent": {
+            "state": "permission",
+            "label": "Guardian permission",
+            "activity": "subagent",
+            "transcript": "__ENDS_WITH__:fixtures/transcripts/guardian-parent.jsonl",
+            "subagentTranscript": "__ENDS_WITH__:fixtures/transcripts/guardian-subagent.jsonl"
+          }
+        }
+      }
+    },
+    {
+      "event": "Stop",
+      "payload": {
+        "session_id": "guardian-parent",
+        "turn_id": "guardian-turn",
+        "cwd": "/tmp/guardian-project",
+        "transcript_fixture": "fixtures/transcripts/guardian-subagent.jsonl"
+      },
+      "expect": {
+        "sessions": {
+          "guardian-parent": {
+            "state": "thinking",
+            "label": "Thinking",
+            "activity": "",
+            "turnId": "main-turn",
+            "transcript": "__ENDS_WITH__:fixtures/transcripts/guardian-parent.jsonl",
+            "subagentTranscript": "",
+            "statusFacts": {
+              "main": {
+                "state": "thinking",
+                "label": "Thinking",
+                "tool": "Bash",
+                "turnId": "main-turn",
+                "startedAt": "__NUMBER__"
+              },
+              "subagents": {}
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -27,7 +27,11 @@ function writerFor(step) {
 
 function runWriter(step, stateDir) {
   const event = step.event;
-  const payload = step.payload || {};
+  const payload = { ...(step.payload || {}) };
+  if (payload.transcript_fixture) {
+    payload.transcript_path = path.join(repoRoot, payload.transcript_fixture);
+    delete payload.transcript_fixture;
+  }
   const result = cp.spawnSync(process.execPath, [writerFor(step), event], {
     input: JSON.stringify(payload),
     encoding: "utf8",
@@ -95,9 +99,25 @@ function assertExpected(actual, expected, fixtureName, stepIndex) {
 }
 
 function assertDeepEqual(actual, expected) {
+  if (expected === "__NUMBER__") {
+    if (typeof actual !== "number") throw new Error("not a number");
+    return;
+  }
+  if (typeof expected === "string" && expected.startsWith("__ENDS_WITH__:")) {
+    if (typeof actual !== "string" || !actual.endsWith(expected.slice("__ENDS_WITH__:".length))) {
+      throw new Error("suffix does not match");
+    }
+    return;
+  }
   if (expected && typeof expected === "object") {
-    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-      throw new Error("not equal");
+    if (!actual || typeof actual !== "object" || Array.isArray(actual) !== Array.isArray(expected)) {
+      throw new Error("not the same shape");
+    }
+    const actualKeys = Object.keys(actual);
+    const expectedKeys = Object.keys(expected);
+    if (actualKeys.length !== expectedKeys.length) throw new Error("not the same size");
+    for (const key of expectedKeys) {
+      assertDeepEqual(actual[key], expected[key]);
     }
     return;
   }
