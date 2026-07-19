@@ -52,10 +52,10 @@ Hover uses the system selection material so text, icons, and badges stay readabl
 
 This setting controls how long resting sessions remain visible in the menu. Session state files are retained independently for 7 days. Increasing the visibility window immediately restores retained sessions whose timestamps fall within the newly selected duration. When every retained session exceeds the selected duration, the Sessions section shows no active Codex sessions.
 
-Side Chat rows use a shorter menu-only fallback: after a Side Chat has been
-resting for 5 minutes, it is hidden from the Sessions menu but its state file is
-kept. If the same Side Chat receives another hook event later, its timestamp and
-state update and the row becomes visible again.
+Side Chat visibility also follows ChatGPT's local view-activity log. Closing a
+Side Chat hides it immediately without deleting its state file; reopening the
+same Side Chat restores it. When no view-activity event is available, a Side
+Chat with no recent activity is hidden after 5 minutes as a fallback.
 
 ## Click Focus
 
