@@ -258,7 +258,6 @@ final class StatusController: NSObject, NSMenuDelegate {
     let defaultStateDir = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.d")
     let defaultLegacyStatePath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.json")
     let defaultThreadMetadataPath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/state_5.sqlite")
-    let defaultChatGPTLogPath = (NSHomeDirectory() as NSString).appendingPathComponent("Library/Logs/com.openai.codex")
     let pollInterval: TimeInterval = 0.4
     let maintenanceInterval: TimeInterval = 5
     let autoExitDelay: TimeInterval = 20
@@ -282,10 +281,6 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     var threadMetadataPath: String {
         ProcessInfo.processInfo.environment["CODEX_STATUSBAR_THREAD_DB_PATH"] ?? defaultThreadMetadataPath
-    }
-
-    var chatGPTLogPath: String {
-        ProcessInfo.processInfo.environment["CODEX_STATUSBAR_CHATGPT_LOG_DIR"] ?? defaultChatGPTLogPath
     }
 
     var pollTimer: Timer?
@@ -384,7 +379,6 @@ final class StatusController: NSObject, NSMenuDelegate {
     var sessions: [String: Session] = [:]
     var threadMetadata: [String: ThreadMetadata] = [:]
     lazy var threadMetadataStore = ThreadMetadataStore(sqlitePath: threadMetadataPath)
-    lazy var chatGPTActivityLogMonitor = ChatGPTActivityLogMonitor(rootPath: chatGPTLogPath)
     var fileMTimes: [String: Date] = [:]
     var legacyMTime: Date = .distantPast
     var codexDesktopProcessCache = TimedBooleanCache()
@@ -416,6 +410,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     lazy var pets: [PetInfo] = loadPets()
     var petImageCache: [String: NSImage] = [:]
     var lastSoundState: State = .idle
+    let notificationObservationStartedAt = Date().timeIntervalSince1970
     lazy var bundledCodexTemplateIcon: NSImage? = loadBundledCodexTemplateIcon()
     let statusBitmapRenderer = StatusItemBitmapRenderer()
 
@@ -489,7 +484,6 @@ final class StatusController: NSObject, NSMenuDelegate {
         menu.removeAllItems()
         sessionMenuItems.removeAll()
         _ = reloadSessions()
-        _ = chatGPTActivityLogMonitor.refresh()
         refreshThreadMetadata()
         applyArchivedThreadOverlay()
         let codexRunning = codexDesktopProcessExists()
@@ -695,7 +689,6 @@ final class StatusController: NSObject, NSMenuDelegate {
     func tick() {
         let now = Date().timeIntervalSince1970
         let sessionsChanged = reloadSessions()
-        let sideChatVisibilityChanged = chatGPTActivityLogMonitor.refresh(now: now)
         let activeElapsedSecond = showTimer ? currentElapsedSeconds() : nil
         let activeTimerSecondChanged = PollingRules.secondChanged(
             current: activeElapsedSecond,
@@ -720,7 +713,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         }
 
         let decision = PollingRules.decision(
-            sessionsChanged: sessionsChanged || sideChatVisibilityChanged,
+            sessionsChanged: sessionsChanged,
             activeTimerSecondChanged: activeTimerSecondChanged,
             menuTimerSecondChanged: menuTimerSecondChanged,
             maintenanceDue: maintenanceDue,
@@ -754,11 +747,13 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     @discardableResult
     func reloadSessions() -> Bool {
+        let previousNotificationSnapshots = notificationSnapshots()
         let files = stateFileNames()
         if files.isEmpty {
             let changed = loadLegacyStateIfNeeded()
             let hadMetadata = !threadMetadata.isEmpty
             threadMetadata.removeAll()
+            playCompletionSoundIfNeeded(previous: previousNotificationSnapshots)
             return changed || hadMetadata
         }
 
@@ -793,7 +788,27 @@ final class StatusController: NSObject, NSMenuDelegate {
             sessions[id] = Session(json: object, id: id)
             changed = true
         }
+        playCompletionSoundIfNeeded(previous: previousNotificationSnapshots)
         return changed
+    }
+
+    func notificationSnapshots() -> [String: SessionNotificationSnapshot] {
+        Dictionary(uniqueKeysWithValues: sessions.map { sessionId, session in
+            (sessionId, SessionNotificationSnapshot(
+                state: session.mainState.rawValue,
+                timestamp: session.ts
+            ))
+        })
+    }
+
+    func playCompletionSoundIfNeeded(previous: [String: SessionNotificationSnapshot]) {
+        guard playNotificationSounds else { return }
+        guard NotificationSoundRules.shouldPlayCompletion(
+            previous: previous,
+            current: notificationSnapshots(),
+            observationStartedAt: notificationObservationStartedAt
+        ) else { return }
+        playSystemSound(named: "Glass")
     }
 
     func refreshThreadMetadata() {
@@ -1033,25 +1048,14 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func isDisplayableSession(_ session: Session) -> Bool {
         !isArchivedThread(session) &&
-            session.sessionKind != "commit-message" &&
-            !isClosedSideChatSession(session)
+            session.sessionKind != "commit-message"
     }
 
     func isHiddenSideChatMenuSession(_ session: Session, now: Double) -> Bool {
         isSideChatSession(session) &&
-            chatGPTActivityLogMonitor.isViewActive(sessionId: sessionIdentity(session)) == nil &&
             isRestingMenuState(session) &&
             session.ts > 0 &&
             now - session.ts > sideChatRestingMenuHideAfter
-    }
-
-    func isClosedSideChatSession(_ session: Session) -> Bool {
-        isSideChatSession(session) &&
-            chatGPTActivityLogMonitor.isViewActive(sessionId: sessionIdentity(session)) == false
-    }
-
-    func sessionIdentity(_ session: Session) -> String {
-        session.sessionId.isEmpty ? session.id : session.sessionId
     }
 
     func isSideChatSession(_ session: Session) -> Bool {
@@ -1567,9 +1571,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         switch state {
         case .permission:
             playSystemSound(named: "Ping")
-        case .done:
-            playSystemSound(named: "Glass")
-        case .idle, .thinking, .tool, .compacting, .waiting:
+        case .idle, .done, .thinking, .tool, .compacting, .waiting:
             return
         }
     }

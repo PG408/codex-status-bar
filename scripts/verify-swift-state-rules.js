@@ -58,35 +58,28 @@ struct VerifyStateRules {
         assertTerminal(TranscriptStateRules.terminalState(in: resumedTail, after: 9_980), .none, "newer task_started supersedes an older completion")
         assertTerminal(TranscriptStateRules.terminalState(in: completedTail, after: 9_999), .none, "completion before state timestamp is ignored")
         assertTerminal(TranscriptStateRules.terminalState(in: guardianTail, after: 9_980), .completed, "guardian completion remains available for subagent recovery")
-        assertBool(ChatGPTActivityLogRules.viewActivityEvent(from:
-            "2026-07-19T07:23:07.935Z info [electron-message-handler] thread_stream_view_activity_changed active=false conversationId=side-chat rendererWindowId=1"
-        ) == ChatGPTViewActivityEvent(sessionId: "side-chat", isActive: false), true, "closed Side Chat view is parsed")
-        assertBool(ChatGPTActivityLogRules.viewActivityEvent(from:
-            "2026-07-19T07:30:31.071Z info [electron-message-handler] thread_stream_view_activity_changed active=true conversationId=side-chat rendererWindowId=1"
-        ) == ChatGPTViewActivityEvent(sessionId: "side-chat", isActive: true), true, "reopened Side Chat view is parsed")
-        assertBool(ChatGPTActivityLogRules.viewActivityEvent(from:
-            "2026-07-19T07:23:07.925Z info [AppServerConnection] method=thread/unsubscribe conversationId=side-chat"
-        ) == nil, true, "unrelated log lines are ignored")
-        let logDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("codex-status-activity-\(UUID().uuidString)")
-        try! FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: logDirectory) }
-        let logFile = logDirectory.appendingPathComponent("codex-desktop-test-t0-i1-000001-0.log")
-        try! "thread_stream_view_activity_changed active=false conversationId=side-chat\\n"
-            .write(to: logFile, atomically: true, encoding: .utf8)
-        let activityMonitor = ChatGPTActivityLogMonitor(
-            rootPath: logDirectory.path,
-            discoveryInterval: 0,
-            initialTailBytes: 1024
-        )
-        assertBool(activityMonitor.refresh(now: 1), true, "activity monitor reads the initial close event")
-        assertBool(activityMonitor.isViewActive(sessionId: "side-chat") == false, true, "closed Side Chat is inactive")
-        let handle = try! FileHandle(forWritingTo: logFile)
-        try! handle.seekToEnd()
-        handle.write(Data("thread_stream_view_activity_changed active=true conversationId=side-chat\\n".utf8))
-        try! handle.close()
-        assertBool(activityMonitor.refresh(now: 2), true, "activity monitor reads an appended reopen event")
-        assertBool(activityMonitor.isViewActive(sessionId: "side-chat") == true, true, "reopened Side Chat is active")
+        let active = SessionNotificationSnapshot(state: "thinking", timestamp: 100)
+        let done = SessionNotificationSnapshot(state: "done", timestamp: 110)
+        assertBool(NotificationSoundRules.shouldPlayCompletion(
+            previous: ["session": active],
+            current: ["session": done],
+            observationStartedAt: 90
+        ), true, "main session completion plays a sound")
+        assertBool(NotificationSoundRules.shouldPlayCompletion(
+            previous: ["session": active],
+            current: [:],
+            observationStartedAt: 90
+        ), false, "leader disappearance does not play a completion sound")
+        assertBool(NotificationSoundRules.shouldPlayCompletion(
+            previous: [:],
+            current: ["session": SessionNotificationSnapshot(state: "done", timestamp: 80)],
+            observationStartedAt: 90
+        ), false, "retained completion does not play on startup")
+        assertBool(NotificationSoundRules.shouldPlayCompletion(
+            previous: [:],
+            current: ["session": done],
+            observationStartedAt: 105
+        ), true, "new fast completion after startup plays a sound")
         assertBool(SessionStateRules.shouldRestoreMainPresentation(
             activity: "subagent",
             activeSubagentKey: "guardian-child",
@@ -280,7 +273,7 @@ struct VerifyStateRules {
 try {
   writeVerifier();
   cp.execFileSync("/usr/bin/swiftc", [
-    path.join(repoRoot, "Sources", "ChatGPTActivityLog.swift"),
+    path.join(repoRoot, "Sources", "NotificationSoundRules.swift"),
     path.join(repoRoot, "Sources", "TranscriptStateRules.swift"),
     path.join(repoRoot, "Sources", "SessionStateRules.swift"),
     verifier,

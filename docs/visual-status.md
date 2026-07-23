@@ -69,7 +69,7 @@ When notification sounds are enabled:
 | State transition | Sound |
 |---|---|
 | Enter `permission` | `Ping` |
-| Enter `done` | `Glass` |
+| A session main thread enters `done` | `Glass` |
 | Other states | none |
 
 ## Boundaries
