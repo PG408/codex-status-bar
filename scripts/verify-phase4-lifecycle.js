@@ -174,7 +174,12 @@ run("SessionStart writes state and logs hook-launched app open", () => {
   const dir = makeTempDir("session-start-launch");
   const { env, fakeApp, openLog, launchTrace, statusDir } = phaseEnv(dir);
   spawnNode([lifecycleWriterPath, "SessionStart"], {
-    input: JSON.stringify({ session_id: "phase4-session-start", cwd: "/tmp/phase4", entrypoint: "cli" }),
+    input: JSON.stringify({
+      session_id: "phase4-session-start",
+      cwd: "/tmp/phase4",
+      entrypoint: "cli",
+      transcript_path: "/tmp/phase4/session-start.jsonl",
+    }),
     env,
   });
   assert.ok(fs.existsSync(path.join(statusDir, "state.d", "phase4-session-start.json")));
@@ -187,7 +192,12 @@ run("activity hook writes state, discovery debug log, and launch trace", () => {
     CODEX_STATUSBAR_DEBUG: "1",
   });
   spawnNode([statusWriterPath, "UserPromptSubmit"], {
-    input: JSON.stringify({ session_id: "phase4-activity", turn_id: "turn-1", cwd: "/tmp/phase4" }),
+    input: JSON.stringify({
+      session_id: "phase4-activity",
+      turn_id: "turn-1",
+      cwd: "/tmp/phase4",
+      transcript_path: "/tmp/phase4/activity.jsonl",
+    }),
     env,
   });
   assert.ok(fs.existsSync(path.join(statusDir, "state.d", "phase4-activity.json")));

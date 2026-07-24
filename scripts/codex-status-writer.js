@@ -3,9 +3,10 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { ensureStatusBarRunning, parseAppPathArg } = require("./lib/hook-manager");
-const { latestThreadName } = require("./lib/session-index");
+const { hasSessionIndexEntry, latestThreadName } = require("./lib/session-index");
 const { sessionKindForPrompt } = require("./lib/session-kind");
 const { resolveSessionSurface } = require("./lib/session-surface");
+const { shouldSuppressSession } = require("./lib/session-visibility");
 const { normalizeHookPayload } = require("./lib/transcript-session");
 
 const event = process.argv[2] || "unknown";
@@ -322,6 +323,16 @@ function writeStateForEvent(inputPayload) {
   const nowMs = Date.now();
   const now = nowMs / 1000;
   const prev = readPrevious(sessionId);
+  const transcriptPath = typeof payload.transcript_path === "string"
+    ? payload.transcript_path
+    : prev.transcript || "";
+  if (shouldSuppressSession({
+    transcriptPath,
+    isInSessionIndex: hasSessionIndexEntry(sessionId),
+  })) {
+    fs.rmSync(statePathFor(sessionId), { force: true });
+    return false;
+  }
   let facts = factsFromPrevious(prev);
   let startedAt = Number(facts.main.startedAt || 0);
   const toolName = typeof payload.tool_name === "string" ? payload.tool_name : "";

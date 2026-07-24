@@ -258,6 +258,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     let defaultStateDir = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.d")
     let defaultLegacyStatePath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/statusbar/state.json")
     let defaultThreadMetadataPath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/state_5.sqlite")
+    let defaultSessionIndexPath = (NSHomeDirectory() as NSString).appendingPathComponent(".codex/session_index.jsonl")
     let pollInterval: TimeInterval = 0.4
     let maintenanceInterval: TimeInterval = 5
     let autoExitDelay: TimeInterval = 20
@@ -281,6 +282,10 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     var threadMetadataPath: String {
         ProcessInfo.processInfo.environment["CODEX_STATUSBAR_THREAD_DB_PATH"] ?? defaultThreadMetadataPath
+    }
+
+    var sessionIndexPath: String {
+        ProcessInfo.processInfo.environment["CODEX_SESSION_INDEX_PATH"] ?? defaultSessionIndexPath
     }
 
     var pollTimer: Timer?
@@ -379,6 +384,8 @@ final class StatusController: NSObject, NSMenuDelegate {
     var sessions: [String: Session] = [:]
     var threadMetadata: [String: ThreadMetadata] = [:]
     lazy var threadMetadataStore = ThreadMetadataStore(sqlitePath: threadMetadataPath)
+    lazy var sessionIndexStore = SessionIndexStore(path: sessionIndexPath)
+    var indexedSessionIds: Set<String> = []
     var fileMTimes: [String: Date] = [:]
     var legacyMTime: Date = .distantPast
     var codexDesktopProcessCache = TimedBooleanCache()
@@ -747,6 +754,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     @discardableResult
     func reloadSessions() -> Bool {
+        let sessionIndexChanged = refreshSessionIndex()
         let previousNotificationSnapshots = notificationSnapshots()
         let files = stateFileNames()
         if files.isEmpty {
@@ -754,7 +762,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             let hadMetadata = !threadMetadata.isEmpty
             threadMetadata.removeAll()
             playCompletionSoundIfNeeded(previous: previousNotificationSnapshots)
-            return changed || hadMetadata
+            return changed || hadMetadata || sessionIndexChanged
         }
 
         var changed = false
@@ -789,16 +797,24 @@ final class StatusController: NSObject, NSMenuDelegate {
             changed = true
         }
         playCompletionSoundIfNeeded(previous: previousNotificationSnapshots)
-        return changed
+        return changed || sessionIndexChanged
     }
 
     func notificationSnapshots() -> [String: SessionNotificationSnapshot] {
-        Dictionary(uniqueKeysWithValues: sessions.map { sessionId, session in
+        Dictionary(uniqueKeysWithValues: sessions.filter { !isSuppressedSession($0.value) }.map { sessionId, session in
             (sessionId, SessionNotificationSnapshot(
                 state: session.mainState.rawValue,
                 timestamp: session.ts
             ))
         })
+    }
+
+    @discardableResult
+    func refreshSessionIndex() -> Bool {
+        let currentIds = sessionIndexStore.sessionIds()
+        guard currentIds != indexedSessionIds else { return false }
+        indexedSessionIds = currentIds
+        return true
     }
 
     func playCompletionSoundIfNeeded(previous: [String: SessionNotificationSnapshot]) {
@@ -1048,7 +1064,16 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func isDisplayableSession(_ session: Session) -> Bool {
         !isArchivedThread(session) &&
-            session.sessionKind != "commit-message"
+            session.sessionKind != "commit-message" &&
+            !isSuppressedSession(session)
+    }
+
+    func isSuppressedSession(_ session: Session) -> Bool {
+        let id = session.sessionId.isEmpty ? session.id : session.sessionId
+        return SessionVisibilityRules.shouldSuppress(
+            transcript: session.transcript,
+            isInSessionIndex: indexedSessionIds.contains(id)
+        )
     }
 
     func isHiddenSideChatMenuSession(_ session: Session, now: Double) -> Bool {

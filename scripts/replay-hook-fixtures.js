@@ -25,7 +25,7 @@ function writerFor(step) {
   return step.writer === "lifecycle" ? lifecycleWriterPath : writerPath;
 }
 
-function runWriter(step, stateDir) {
+function runWriter(step, stateDir, sessionIndexPath) {
   const event = step.event;
   const payload = { ...(step.payload || {}) };
   if (payload.transcript_fixture) {
@@ -38,6 +38,7 @@ function runWriter(step, stateDir) {
     env: {
       ...process.env,
       CODEX_STATUSBAR_DIR: stateDir,
+      CODEX_SESSION_INDEX_PATH: sessionIndexPath,
       CODEX_STATUSBAR_MIN_TOOL_VISIBLE_MS: "0",
       CODEX_STATUSBAR_MAX_TOOL_VISIBLE_MS: "0",
       CODEX_STATUSBAR_MIN_PERMISSION_VISIBLE_MS: "0",
@@ -158,9 +159,12 @@ function assertStep(stateDir, expected, fixtureName, stepIndex) {
 function runFixture(filePath) {
   const fixture = readJson(filePath);
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), `codex-statusbar-${fixture.name}-`));
+  const sessionIndexPath = path.join(stateDir, "session_index.jsonl");
   try {
+    const sessionIds = new Set(fixture.steps.map((step) => step.payload?.session_id).filter(Boolean));
+    fs.writeFileSync(sessionIndexPath, Array.from(sessionIds).map((id) => JSON.stringify({ id })).join("\n"));
     fixture.steps.forEach((step, index) => {
-      runWriter(step, stateDir);
+      runWriter(step, stateDir, sessionIndexPath);
       assertStep(stateDir, step.expect || {}, fixture.name, index);
     });
     console.log(`PASS ${fixture.name}`);

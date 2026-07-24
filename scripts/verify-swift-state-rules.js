@@ -80,6 +80,29 @@ struct VerifyStateRules {
             current: ["session": done],
             observationStartedAt: 105
         ), true, "new fast completion after startup plays a sound")
+        assertBool(SessionVisibilityRules.shouldSuppress(
+            transcript: "",
+            isInSessionIndex: false
+        ), true, "session without transcript or index entry is suppressed")
+        assertBool(SessionVisibilityRules.shouldSuppress(
+            transcript: " /tmp/session.jsonl ",
+            isInSessionIndex: false
+        ), false, "transcript keeps a session visible")
+        assertBool(SessionVisibilityRules.shouldSuppress(
+            transcript: "",
+            isInSessionIndex: true
+        ), false, "session index entry keeps a session visible")
+        assertBool(SessionVisibilityRules.shouldSuppress(
+            transcript: "/tmp/session.jsonl",
+            isInSessionIndex: true
+        ), false, "either persistence signal is sufficient")
+        let indexedIds = SessionVisibilityRules.indexedSessionIds(from: [
+            #"{"id":"indexed","thread_name":"Visible"}"#,
+            #"{"id":"indexed","thread_name":"Renamed"}"#,
+            #"{"id":"second"}"#,
+            "{bad json",
+        ].joined(separator: "\\n"))
+        assertBool(indexedIds == Set(["indexed", "second"]), true, "session index parser returns valid unique ids")
         assertBool(SessionStateRules.shouldRestoreMainPresentation(
             activity: "subagent",
             activeSubagentKey: "guardian-child",
@@ -274,6 +297,8 @@ try {
   writeVerifier();
   cp.execFileSync("/usr/bin/swiftc", [
     path.join(repoRoot, "Sources", "NotificationSoundRules.swift"),
+    path.join(repoRoot, "Sources", "SessionIndexStore.swift"),
+    path.join(repoRoot, "Sources", "SessionVisibilityRules.swift"),
     path.join(repoRoot, "Sources", "TranscriptStateRules.swift"),
     path.join(repoRoot, "Sources", "SessionStateRules.swift"),
     verifier,

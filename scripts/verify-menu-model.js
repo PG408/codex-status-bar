@@ -13,6 +13,7 @@ const docs = fs.existsSync("docs/sessions-menu.md")
   : "";
 const writer = fs.readFileSync("scripts/codex-status-writer.js", "utf8");
 const lifecycleWriter = fs.readFileSync("scripts/codex-lifecycle-writer.js", "utf8");
+const visibilityRules = fs.readFileSync("scripts/lib/session-visibility.js", "utf8");
 const buildScript = fs.readFileSync("build.sh", "utf8");
 const runScript = fs.readFileSync("script/build_and_run.sh", "utf8");
 const visualStatusDocs = fs.readFileSync("docs/visual-status.md", "utf8");
@@ -36,6 +37,9 @@ const checks = [
   ["Swift reads Codex thread metadata overlay", swift.includes("ThreadMetadataStore") && swift.includes("refreshThreadMetadata")],
   ["Swift hides archived threads from lead and menu", swift.includes("func isDisplayableSession") && swift.includes("!isArchivedThread(session)")],
   ["Swift hides commit-message sessions from lead and menu", swift.includes("func isDisplayableSession") && swift.includes('session.sessionKind != "commit-message"') && swift.split("filter { isDisplayableSession($0) }").length === 3],
+  ["Swift hides unpersisted sessions from lead and menu", swift.includes("func isSuppressedSession") && swift.includes("!isSuppressedSession(session)")],
+  ["Swift excludes unpersisted sessions from completion sounds", swift.includes("func notificationSnapshots") && swift.includes("sessions.filter { !isSuppressedSession($0.value) }")],
+  ["Swift reads session index independently from SQLite metadata", swift.includes("SessionIndexStore(path: sessionIndexPath)") && swift.includes("indexedSessionIds")],
   ["Swift settles archived active sessions to done", swift.includes("applyArchivedThreadOverlay") && swift.includes("markArchivedSessionDone")],
   ["Swift supports Hide idle sessions", swift.includes("Hide idle sessions") && swift.includes("hideIdleAfter")],
   ["Swift supports idle visibility through seven days", swift.includes('(\"12 hours\", 12 * 3600.0)') && swift.includes('(\"24 hours\", 24 * 3600.0)') && swift.includes('(\"7 days\", SessionStateRules.sessionRetentionAfter)') && !swift.includes('(\"Never\", 0.0)')],
@@ -74,6 +78,8 @@ const checks = [
   ["Writer recognizes subagent payload ownership", writer.includes("function isSubagentPayload") && writer.includes("payload.agent_id || payload.agent_type")],
   ["Writer does not treat SubagentStop as session Stop", writer.includes('case "SubagentStop"') && writer.includes("stopSubagent(facts, payload)") && !writer.includes('case "Stop":\n    case "SubagentStop"')],
   ["Writers persist session_index thread names", writer.includes("latestThreadName(sessionId)") && lifecycleWriter.includes("latestThreadName(sessionId)")],
+  ["Writers remove sessions without persistence signals", writer.includes("shouldSuppressSession") && writer.includes("fs.rmSync(statePathFor(sessionId)") && lifecycleWriter.includes("shouldSuppressSession") && lifecycleWriter.includes("fs.rmSync(statePath")],
+  ["Session suppression depends only on transcript and session index", visibilityRules.includes("transcriptPath") && visibilityRules.includes("isInSessionIndex") && !visibilityRules.includes("project") && !visibilityRules.includes("Unknown")],
   ["Session index resolver labels Side Chat sessions", fs.readFileSync("scripts/lib/session-index.js", "utf8").includes('"Side Chat"') && fs.readFileSync("scripts/lib/session-index.js", "utf8").includes("hasSideChatPromptHistory")],
   ["Writer preserves transcript path for interrupt recovery", writer.includes("transcript_path") && writer.includes("prev.transcript")],
   ["Swift uses transcript terminal events for active-state recovery", swift.includes("transcriptTerminalState") && swift.includes("TranscriptStateRules.terminalState")],

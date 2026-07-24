@@ -3,7 +3,7 @@ const assert = require("assert");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { DEFAULT_THREAD_NAME, latestThreadName } = require("./lib/session-index");
+const { DEFAULT_THREAD_NAME, hasSessionIndexEntry, latestThreadName } = require("./lib/session-index");
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "codex-session-index-"));
 try {
@@ -27,6 +27,8 @@ try {
   fs.writeFileSync(malformedGlobalStatePath, "{bad json");
 
   assert.equal(latestThreadName("a", { CODEX_SESSION_INDEX_PATH: indexPath }), "最新名称");
+  assert.equal(hasSessionIndexEntry("a", { CODEX_SESSION_INDEX_PATH: indexPath }), true);
+  assert.equal(hasSessionIndexEntry("missing", { CODEX_SESSION_INDEX_PATH: indexPath }), false);
   assert.equal(latestThreadName("missing", { CODEX_SESSION_INDEX_PATH: indexPath }), DEFAULT_THREAD_NAME);
   assert.equal(latestThreadName("a", { CODEX_SESSION_INDEX_PATH: path.join(tmp, "missing.jsonl") }), DEFAULT_THREAD_NAME);
   assert.equal(latestThreadName("side", {

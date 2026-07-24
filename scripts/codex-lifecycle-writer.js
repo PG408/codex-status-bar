@@ -3,8 +3,9 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { ensureStatusBarRunning, parseAppPathArg } = require("./lib/hook-manager");
-const { latestThreadName } = require("./lib/session-index");
+const { hasSessionIndexEntry, latestThreadName } = require("./lib/session-index");
 const { resolveSessionSurface } = require("./lib/session-surface");
+const { shouldSuppressSession } = require("./lib/session-visibility");
 
 const event = process.argv[2] || "unknown";
 const appPath = parseAppPathArg();
@@ -67,6 +68,18 @@ function run() {
 
   const sessionId = sessionIdFor(payload);
   const statePath = statePathFor(sessionId);
+  const prev = readPrevious(sessionId);
+  const transcriptPath = typeof payload.transcript_path === "string"
+    ? payload.transcript_path
+    : prev.transcript || "";
+
+  if (shouldSuppressSession({
+    transcriptPath,
+    isInSessionIndex: hasSessionIndexEntry(sessionId),
+  })) {
+    fs.rmSync(statePath, { force: true });
+    process.exit(0);
+  }
 
   if (event === "SessionStart") {
     const now = Date.now() / 1000;
@@ -85,13 +98,13 @@ function run() {
       entrypointSource: surface.entrypointSource,
       termProgram: surface.termProgram,
       focusTarget: surface.focusTarget,
+      transcript: transcriptPath,
       started: false,
       startedAt: 0,
       ts: now,
     });
     ensureStatusBarRunning({ scriptDir: __dirname, appPath });
   } else if (event === "SessionEnd") {
-    const prev = readPrevious(sessionId);
     if (prev.sessionId) {
       const now = Date.now() / 1000;
       const pid = Number(prev.pid || process.ppid || 0);
@@ -110,6 +123,7 @@ function run() {
         entrypointSource: surface.entrypointSource,
         termProgram: surface.termProgram,
         focusTarget: surface.focusTarget,
+        transcript: transcriptPath,
         started: false,
         startedAt: 0,
         ts: now,

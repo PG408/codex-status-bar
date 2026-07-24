@@ -199,7 +199,12 @@ run("SessionStart hook launches status bar app after writing state", () => {
     fs.chmodSync(openBin, 0o755);
 
     const result = cp.spawnSync(process.execPath, [path.join(repoRoot, "scripts", "codex-lifecycle-writer.js"), "SessionStart"], {
-      input: JSON.stringify({ session_id: "launch-check", cwd: "/tmp/launch-check", entrypoint: "cli" }),
+      input: JSON.stringify({
+        session_id: "launch-check",
+        cwd: "/tmp/launch-check",
+        entrypoint: "cli",
+        transcript_path: "/tmp/launch-check/session.jsonl",
+      }),
       encoding: "utf8",
       env: {
         ...process.env,
@@ -231,7 +236,12 @@ run("activity hook launches status bar app after writing state", () => {
     fs.chmodSync(openBin, 0o755);
 
     const result = cp.spawnSync(process.execPath, [path.join(repoRoot, "scripts", "codex-status-writer.js"), "UserPromptSubmit"], {
-      input: JSON.stringify({ session_id: "activity-launch-check", turn_id: "turn", cwd: "/tmp/activity-launch-check" }),
+      input: JSON.stringify({
+        session_id: "activity-launch-check",
+        turn_id: "turn",
+        cwd: "/tmp/activity-launch-check",
+        transcript_path: "/tmp/activity-launch-check/session.jsonl",
+      }),
       encoding: "utf8",
       env: {
         ...process.env,

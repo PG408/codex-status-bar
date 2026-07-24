@@ -38,6 +38,24 @@ function latestSessionIndexThreadName(sessionId, env = process.env) {
   return latest || DEFAULT_THREAD_NAME;
 }
 
+function hasSessionIndexEntry(sessionId, env = process.env) {
+  if (!sessionId) return false;
+
+  try {
+    const text = fs.readFileSync(sessionIndexPath(env), "utf8");
+    return text.split(/\n+/).some((line) => {
+      if (!line) return false;
+      try {
+        return JSON.parse(line).id === sessionId;
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return false;
+  }
+}
+
 function hasSideChatPromptHistory(sessionId, env = process.env) {
   if (!sessionId) return false;
 
@@ -67,6 +85,7 @@ module.exports = {
   DEFAULT_THREAD_NAME,
   SIDE_CHAT_THREAD_NAME,
   globalStatePath,
+  hasSessionIndexEntry,
   hasSideChatPromptHistory,
   latestThreadName,
   latestSessionIndexThreadName,
