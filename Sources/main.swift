@@ -385,6 +385,9 @@ final class StatusController: NSObject, NSMenuDelegate {
     var sessions: [String: Session] = [:]
     var threadMetadata: [String: ThreadMetadata] = [:]
     lazy var threadMetadataStore = ThreadMetadataStore(sqlitePath: threadMetadataPath)
+    let transcriptTurnStore = TranscriptTurnStore()
+    var activeV2SubagentStartedAt: [String: Double] = [:]
+    var v2SubagentPresentedSessionIds: Set<String> = []
     lazy var sessionIndexStore = SessionIndexStore(path: sessionIndexPath)
     var indexedSessionIds: Set<String> = []
     var fileMTimes: [String: Date] = [:]
@@ -831,6 +834,31 @@ final class StatusController: NSObject, NSMenuDelegate {
     func refreshThreadMetadata() {
         let ids = sessions.values.map { $0.sessionId.isEmpty ? $0.id : $0.sessionId }
         threadMetadata = threadMetadataStore.metadata(for: ids)
+        refreshV2SubagentStates()
+    }
+
+    func refreshV2SubagentStates() {
+        let candidates = sessions.values.filter { isActiveState($0.state) }
+        let parentIds = candidates.map { $0.sessionId.isEmpty ? $0.id : $0.sessionId }
+        let childrenByParent = threadMetadataStore.subagentThreads(for: parentIds)
+        var activeBySessionId: [String: Double] = [:]
+        var retainedPaths: Set<String> = []
+
+        for session in candidates {
+            let parentId = session.sessionId.isEmpty ? session.id : session.sessionId
+            for child in childrenByParent[parentId] ?? [] where !child.rolloutPath.isEmpty {
+                retainedPaths.insert(child.rolloutPath)
+                let snapshot = transcriptTurnStore.snapshot(for: child.rolloutPath)
+                guard snapshot.state == .running else { continue }
+                activeBySessionId[session.id] = max(
+                    activeBySessionId[session.id] ?? 0,
+                    snapshot.timestamp
+                )
+            }
+        }
+
+        transcriptTurnStore.retain(paths: retainedPaths)
+        activeV2SubagentStartedAt = activeBySessionId
     }
 
     func applyArchivedThreadOverlay() {
@@ -937,7 +965,8 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         let state = lead.effectiveState
         let label = statusLabel(for: lead)
-        let startedAt = state == .thinking || state == .tool || state == .compacting ? lead.startedAt : 0
+        let startedAt = state == .thinking || state == .tool || state == .compacting ?
+            presentationStartedAt(for: lead) : 0
         let iconWarning = isLongRunningTool(lead)
 
         switch state {
@@ -970,6 +999,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func refreshEffectiveSessionStates(codexRunning: Bool) {
         let now = Date().timeIntervalSince1970
+        var presentedV2Subagents: Set<String> = []
         for id in Array(sessions.keys) {
             guard var session = sessions[id] else { continue }
             let subagentTerminalState = transcriptTerminalState(
@@ -987,14 +1017,25 @@ final class StatusController: NSObject, NSMenuDelegate {
                 session.tool = session.mainTool
                 session.startedAt = session.mainStartedAt
             }
-            session.effectiveState = effectiveState(
+            let derivedState = effectiveState(
                 for: session,
                 state: restoreMain ? session.mainState : session.state,
                 now: now,
                 codexRunning: codexRunning
             )
+            if SessionStateRules.shouldPresentV2Subagent(
+                activity: session.activity,
+                state: derivedState.rawValue,
+                hasActiveV2Subagent: activeV2SubagentStartedAt[id] != nil
+            ) {
+                session.effectiveState = .thinking
+                presentedV2Subagents.insert(id)
+            } else {
+                session.effectiveState = derivedState
+            }
             sessions[id] = session
         }
+        v2SubagentPresentedSessionIds = presentedV2Subagents
     }
 
     func cleanupSessionFilesOnStartup() {
@@ -1141,10 +1182,11 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func sessionTimer(for session: Session) -> String? {
-        guard (session.effectiveState == .thinking || session.effectiveState == .tool || session.effectiveState == .compacting), session.startedAt > 0 else {
+        let startedAt = presentationStartedAt(for: session)
+        guard (session.effectiveState == .thinking || session.effectiveState == .tool || session.effectiveState == .compacting), startedAt > 0 else {
             return nil
         }
-        return elapsed(max(0, Int(Date().timeIntervalSince1970 - session.startedAt)))
+        return elapsed(max(0, Int(Date().timeIntervalSince1970 - startedAt)))
     }
 
     func isLongRunningTool(_ session: Session, now: Double = Date().timeIntervalSince1970) -> Bool {
@@ -1519,6 +1561,9 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func statusLabel(for session: Session) -> String {
+        if v2SubagentPresentedSessionIds.contains(session.id) {
+            return normalizedStatusLabel("Subagent running")
+        }
         let label: String
         switch session.effectiveState {
         case .thinking:
@@ -1537,6 +1582,10 @@ final class StatusController: NSObject, NSMenuDelegate {
             label = ""
         }
         return normalizedStatusLabel(label)
+    }
+
+    func presentationStartedAt(for session: Session) -> Double {
+        activeV2SubagentStartedAt[session.id] ?? session.startedAt
     }
 
     func normalizedStatusLabel(_ label: String) -> String {

@@ -7,11 +7,19 @@ struct ThreadMetadata {
     let archivedAt: Double
 }
 
+struct SubagentThreadMetadata: Equatable {
+    let id: String
+    let rolloutPath: String
+}
+
 final class ThreadMetadataStore {
     private let sqlitePath: String
     private var lastMTime: Date = .distantPast
     private var lastIdsKey = ""
     private var cache: [String: ThreadMetadata] = [:]
+    private var lastParentIdsKey = ""
+    private var lastSubagentMTime: Date = .distantPast
+    private var subagentCache: [String: [SubagentThreadMetadata]] = [:]
 
     init(sqlitePath: String) {
         self.sqlitePath = sqlitePath
@@ -42,6 +50,33 @@ final class ThreadMetadataStore {
         lastIdsKey = idsKey
         cache = readMetadata(ids: cleanIds)
         return cache
+    }
+
+    func subagentThreads(for parentIds: [String]) -> [String: [SubagentThreadMetadata]] {
+        let cleanIds = Array(Set(parentIds.filter { !$0.isEmpty })).sorted()
+        let idsKey = cleanIds.joined(separator: "\u{1f}")
+        guard !cleanIds.isEmpty else {
+            subagentCache.removeAll()
+            lastParentIdsKey = ""
+            lastSubagentMTime = .distantPast
+            return [:]
+        }
+
+        guard let mtime = databaseMTime() else {
+            subagentCache.removeAll()
+            lastParentIdsKey = idsKey
+            lastSubagentMTime = .distantPast
+            return [:]
+        }
+
+        if mtime == lastSubagentMTime, idsKey == lastParentIdsKey {
+            return subagentCache
+        }
+
+        lastSubagentMTime = mtime
+        lastParentIdsKey = idsKey
+        subagentCache = readSubagentThreads(parentIds: cleanIds)
+        return subagentCache
     }
 
     private func databaseMTime() -> Date? {
@@ -90,6 +125,50 @@ final class ThreadMetadataStore {
             let archived = sqlite3_column_int(statement, 1) != 0
             let archivedAt = sqlite3_column_type(statement, 2) == SQLITE_NULL ? 0 : sqlite3_column_double(statement, 2)
             result[id] = ThreadMetadata(id: id, archived: archived, archivedAt: archivedAt)
+        }
+        return result
+    }
+
+    private func readSubagentThreads(parentIds: [String]) -> [String: [SubagentThreadMetadata]] {
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(sqlitePath, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil) == SQLITE_OK,
+              let db else {
+            if db != nil { sqlite3_close(db) }
+            return [:]
+        }
+        defer { sqlite3_close(db) }
+
+        let placeholders = Array(repeating: "?", count: parentIds.count).joined(separator: ",")
+        let sql = """
+            select e.parent_thread_id, e.child_thread_id, t.rollout_path
+            from thread_spawn_edges e
+            join threads t on t.id = e.child_thread_id
+            where e.parent_thread_id in (\(placeholders))
+            """
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK,
+              let statement else {
+            return [:]
+        }
+        defer { sqlite3_finalize(statement) }
+
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        for (index, id) in parentIds.enumerated() {
+            sqlite3_bind_text(statement, Int32(index + 1), id, -1, transient)
+        }
+
+        var result: [String: [SubagentThreadMetadata]] = [:]
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let rawParentId = sqlite3_column_text(statement, 0),
+                  let rawChildId = sqlite3_column_text(statement, 1),
+                  let rawRolloutPath = sqlite3_column_text(statement, 2) else {
+                continue
+            }
+            let parentId = String(cString: rawParentId)
+            result[parentId, default: []].append(SubagentThreadMetadata(
+                id: String(cString: rawChildId),
+                rolloutPath: String(cString: rawRolloutPath)
+            ))
         }
         return result
     }

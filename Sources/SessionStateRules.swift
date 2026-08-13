@@ -28,6 +28,15 @@ enum SessionStateRules {
         return subagentTerminalState == .completed || subagentTerminalState == .interrupted
     }
 
+    static func shouldPresentV2Subagent(
+        activity: String,
+        state: String,
+        hasActiveV2Subagent: Bool
+    ) -> Bool {
+        guard hasActiveV2Subagent, activity != "subagent" else { return false }
+        return state == "thinking"
+    }
+
     static func effectiveState(_ input: SessionStateRuleInput) -> String {
         let state = input.state
 

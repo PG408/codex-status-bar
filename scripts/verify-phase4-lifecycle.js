@@ -230,6 +230,11 @@ run("Swift liveness, stale cleanup, interrupt, and auto-exit rules pass", () => 
   spawnNode([path.join(repoRoot, "scripts", "verify-swift-state-rules.js")]);
 });
 
+run("Swift thread metadata and V2 subagent transcript stores pass", () => {
+  spawnNode([path.join(repoRoot, "scripts", "verify-thread-metadata-store.js")]);
+  spawnNode([path.join(repoRoot, "scripts", "verify-transcript-turn-store.js")]);
+});
+
 run("Swift preference migration rules pass", () => {
   spawnNode([path.join(repoRoot, "scripts", "verify-preference-migration.js")]);
 });

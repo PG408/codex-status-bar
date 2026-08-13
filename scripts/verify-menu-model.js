@@ -35,6 +35,7 @@ const checks = [
   ["Swift displays thread names in session rows", swift.includes("threadName") && swift.includes("defaultThreadName") && swift.includes("session.threadName")],
   ["Swift lets session row width drive thread name truncation", swift.includes("lineBreakMode = .byTruncatingTail") && swift.includes("row.configure(name: sessionName(for: session)") && swift.includes("maxNameW") && !swift.includes("truncated(sessionName(for: session)")],
   ["Swift reads Codex thread metadata overlay", swift.includes("ThreadMetadataStore") && swift.includes("refreshThreadMetadata")],
+  ["Swift derives persistent V2 subagent state from SQLite and transcript", swift.includes("subagentThreads(for:") && swift.includes("TranscriptTurnStore") && swift.includes("refreshV2SubagentStates") && swift.includes('normalizedStatusLabel("Subagent running")')],
   ["Swift hides archived threads from lead and menu", swift.includes("func isDisplayableSession") && swift.includes("!isArchivedThread(session)")],
   ["Swift hides commit-message sessions from lead and menu", swift.includes("func isDisplayableSession") && swift.includes('session.sessionKind != "commit-message"') && swift.split("filter { isDisplayableSession($0) }").length === 3],
   ["Swift hides unpersisted sessions from lead and menu", swift.includes("func isSuppressedSession") && swift.includes("!isSuppressedSession(session)")],

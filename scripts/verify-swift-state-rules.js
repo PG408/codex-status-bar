@@ -38,6 +38,17 @@ func assertTerminal(
     }
 }
 
+func assertTurn(
+    _ actual: TranscriptTurnState,
+    _ expected: TranscriptTurnState,
+    _ label: String
+) {
+    if actual != expected {
+        fputs("FAIL \\(label): expected \\(expected), got \\(actual)\\n", stderr)
+        exit(1)
+    }
+}
+
 @main
 struct VerifyStateRules {
     static func main() {
@@ -58,6 +69,10 @@ struct VerifyStateRules {
         assertTerminal(TranscriptStateRules.terminalState(in: resumedTail, after: 9_980), .none, "newer task_started supersedes an older completion")
         assertTerminal(TranscriptStateRules.terminalState(in: completedTail, after: 9_999), .none, "completion before state timestamp is ignored")
         assertTerminal(TranscriptStateRules.terminalState(in: guardianTail, after: 9_980), .completed, "guardian completion remains available for subagent recovery")
+        assertTurn(TranscriptStateRules.turnState(in: completedTail), .completed, "completed child transcript is terminal")
+        assertTurn(TranscriptStateRules.turnState(in: resumedTail), .running, "new child turn reactivates a completed transcript")
+        assertTurn(TranscriptStateRules.turnState(in: interruptedTail), .interrupted, "interrupted child transcript is terminal")
+        assertTurn(TranscriptStateRules.turnState(in: ""), .unknown, "missing child events stay unknown")
         let active = SessionNotificationSnapshot(state: "thinking", timestamp: 100)
         let done = SessionNotificationSnapshot(state: "done", timestamp: 110)
         assertBool(NotificationSoundRules.shouldPlayCompletion(
@@ -121,6 +136,32 @@ struct VerifyStateRules {
             transcriptSubagentKey: "guardian-child",
             subagentTerminalState: .completed
         ), false, "completed guardian does not hide another active subagent")
+
+        assertBool(SessionStateRules.shouldPresentV2Subagent(
+            activity: "",
+            state: "thinking",
+            hasActiveV2Subagent: true
+        ), true, "active V2 subagent outranks main thinking")
+        assertBool(SessionStateRules.shouldPresentV2Subagent(
+            activity: "",
+            state: "tool",
+            hasActiveV2Subagent: true
+        ), false, "main tool outranks active V2 subagent")
+        assertBool(SessionStateRules.shouldPresentV2Subagent(
+            activity: "",
+            state: "waiting",
+            hasActiveV2Subagent: true
+        ), false, "stale session liveness outranks transcript fallback")
+        assertBool(SessionStateRules.shouldPresentV2Subagent(
+            activity: "subagent",
+            state: "thinking",
+            hasActiveV2Subagent: true
+        ), false, "hook subagent presentation remains authoritative")
+        assertBool(SessionStateRules.shouldPresentV2Subagent(
+            activity: "",
+            state: "thinking",
+            hasActiveV2Subagent: false
+        ), false, "no active V2 child leaves main presentation unchanged")
 
         assertBool(SessionStateRules.isDesktopHostCommand(
             "/Applications/ChatGPT.app/Contents/Resources/codex -c features.code_mode_host=true app-server"
