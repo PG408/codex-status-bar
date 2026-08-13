@@ -1483,16 +1483,11 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func detectCodexDesktopProcess() -> Bool {
         NSWorkspace.shared.runningApplications.contains { application in
-            if application.bundleIdentifier == "com.openai.codex" {
-                return true
-            }
-            if application.bundleURL?.path.contains("/Codex.app") == true {
-                return true
-            }
-            if application.bundleURL?.path.contains("/ChatGPT.app") == true {
-                return true
-            }
-            return application.localizedName == "Codex" || application.localizedName == "ChatGPT"
+            SessionStateRules.isCodexDesktopApplication(
+                bundleIdentifier: application.bundleIdentifier ?? "",
+                bundlePath: application.bundleURL?.path ?? "",
+                localizedName: application.localizedName ?? ""
+            )
         }
     }
 

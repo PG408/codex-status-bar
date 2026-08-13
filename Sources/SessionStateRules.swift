@@ -97,6 +97,21 @@ enum SessionStateRules {
             command.contains("ChatGPT.app/Contents/Resources/codex")
     }
 
+    static func isCodexDesktopApplication(
+        bundleIdentifier: String,
+        bundlePath: String,
+        localizedName: String
+    ) -> Bool {
+        if bundleIdentifier == "com.openai.codex" {
+            return true
+        }
+        let appName = URL(fileURLWithPath: bundlePath).lastPathComponent
+        if appName == "Codex.app" || appName == "ChatGPT.app" {
+            return true
+        }
+        return localizedName == "Codex" || localizedName == "ChatGPT"
+    }
+
     static func shouldRemoveSession(
         ts: Double,
         now: Double,

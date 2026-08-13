@@ -170,6 +170,27 @@ struct VerifyStateRules {
             "/usr/local/bin/codex"
         ), false, "CLI codex process is not desktop process evidence")
 
+        assertBool(SessionStateRules.isCodexDesktopApplication(
+            bundleIdentifier: "com.openai.codex",
+            bundlePath: "/Applications/ChatGPT.app",
+            localizedName: "ChatGPT"
+        ), true, "ChatGPT main app is desktop liveness evidence")
+        assertBool(SessionStateRules.isCodexDesktopApplication(
+            bundleIdentifier: "",
+            bundlePath: "/Applications/ChatGPT.app/Contents/Resources/native/bare-modifier-monitor",
+            localizedName: "bare-modifier-monitor"
+        ), false, "nested ChatGPT helper is not desktop liveness evidence")
+        assertBool(SessionStateRules.isCodexDesktopApplication(
+            bundleIdentifier: "com.openai.sky.CUAService",
+            bundlePath: "/Users/test/.codex/computer-use/Codex Computer Use.app",
+            localizedName: "ChatGPT Computer Use"
+        ), false, "computer-use helper is not desktop liveness evidence")
+        assertBool(SessionStateRules.isCodexDesktopApplication(
+            bundleIdentifier: "",
+            bundlePath: "/Applications/Codex.app",
+            localizedName: "Codex"
+        ), true, "legacy Codex main app path remains supported")
+
         assertEqual(SessionStateRules.effectiveState(SessionStateRuleInput(
             state: "tool",
             startedAt: now - 500,
