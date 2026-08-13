@@ -58,7 +58,8 @@ Swift treats `state.d/<session_id>.json` as recoverable display state with a fix
 - CLI PID loss changes effective liveness but does not delete retained state immediately.
 - Session files older than 7 days are removed independently of the `Hide idle sessions` menu setting.
 - `PreToolUse` keeps a session in `tool` until `PostToolUse` writes the next explicit state. After three minutes from `PreToolUse`, Swift changes only the icon tint as a warning and leaves the persisted state, label, and timer semantics unchanged.
-- If Codex records a transcript `turn_aborted` event with `reason: "interrupted"`, Swift treats active `thinking`, `tool`, `compacting`, `permission`, or `waiting` as `idle`. This covers manual termination paths that do not reliably deliver a `Stop` hook.
+- `PreToolUse` for `request_user_input` writes `needs_input` until the matching `PostToolUse` arrives after the user answers.
+- If Codex records a transcript `turn_aborted` event with `reason: "interrupted"`, Swift treats active `thinking`, `tool`, `compacting`, `permission`, `needs_input`, or `waiting` as `idle`. This covers manual termination paths that do not reliably deliver a `Stop` hook.
 - Live active sessions are not aged out by a short quiet timeout; `thinking` and `compacting` remain visible until an explicit next-state event, stop/end event, or surface liveness says otherwise. Resting sessions disappear from the menu according to `Hide idle sessions` while their state remains recoverable for 7 days.
 
 This keeps current sessions visible while preventing stale files from accumulating indefinitely.
@@ -69,9 +70,9 @@ The app exits after a delay when all conditions are true:
 
 - no Codex Desktop app is running
 - no live session exists
-- no `permission`, `tool`, `thinking`, `compacting`, or `waiting` session is visible
+- no `permission`, `needs_input`, `tool`, `thinking`, `compacting`, or `waiting` session is visible
 
-The delay prevents short gaps between hook writes from causing premature exit. Active CLI sessions, permission prompts, and running tool/thinking/compacting sessions keep the status bar process alive.
+The delay prevents short gaps between hook writes from causing premature exit. Active CLI sessions, permission prompts, input requests, and running tool/thinking/compacting sessions keep the status bar process alive.
 
 ## Uninstall Boundary
 

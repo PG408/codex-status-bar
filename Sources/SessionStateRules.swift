@@ -31,7 +31,7 @@ enum SessionStateRules {
     static func effectiveState(_ input: SessionStateRuleInput) -> String {
         let state = input.state
 
-        if ["thinking", "tool", "compacting", "permission", "waiting"].contains(state) {
+        if ["thinking", "tool", "compacting", "permission", "needs_input", "waiting"].contains(state) {
             switch input.transcriptTerminalState {
             case .completed:
                 return "done"
@@ -51,7 +51,7 @@ enum SessionStateRules {
                 return "waiting"
             }
         }
-        if ["thinking", "tool", "compacting", "permission", "waiting"].contains(state),
+        if ["thinking", "tool", "compacting", "permission", "needs_input", "waiting"].contains(state),
            !input.isDesktop,
            !input.hasLivePid,
            input.ts > 0 {
@@ -62,6 +62,19 @@ enum SessionStateRules {
         }
 
         return state
+    }
+
+    static func presentationPriority(for state: String) -> Int {
+        switch state {
+        case "permission":
+            return 3
+        case "needs_input":
+            return 2
+        case "thinking", "tool", "compacting":
+            return 1
+        default:
+            return 0
+        }
     }
 
     static func isLongRunningTool(state: String, ts: Double, now: Double) -> Bool {

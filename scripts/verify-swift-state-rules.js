@@ -151,6 +151,22 @@ struct VerifyStateRules {
             now: now
         )), "tool", "long-running tool keeps the persisted tool state")
 
+        assertEqual(SessionStateRules.effectiveState(SessionStateRuleInput(
+            state: "needs_input",
+            startedAt: now - 901,
+            ts: now - 901,
+            isDesktop: true,
+            codexRunning: true,
+            hasLivePid: false,
+            transcriptTerminalState: .none,
+            now: now
+        )), "needs_input", "user input request remains visible while Codex is waiting")
+
+        assertEqual(String(SessionStateRules.presentationPriority(for: "permission")), "3", "permission has highest presentation priority")
+        assertEqual(String(SessionStateRules.presentationPriority(for: "needs_input")), "2", "user input outranks ordinary active work")
+        assertEqual(String(SessionStateRules.presentationPriority(for: "tool")), "1", "tool keeps ordinary active priority")
+        assertEqual(String(SessionStateRules.presentationPriority(for: "waiting")), "0", "stale waiting remains resting priority")
+
         assertBool(SessionStateRules.isLongRunningTool(
             state: "tool",
             ts: now - 181,

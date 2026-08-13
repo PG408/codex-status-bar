@@ -118,13 +118,21 @@ async function main() {
     },
     {
       id: 6,
+      name: "Needs input",
+      state: "needs_input",
+      label: "Needs input",
+      tool: "request_user_input",
+      expected: "Yellow Codex icon and yellow dot plus 'Needs input'; no timer.",
+    },
+    {
+      id: 7,
       name: "Waiting",
       state: "waiting",
       label: "Waiting",
       expected: "Static icon plus 'Waiting'; no timer.",
     },
     {
-      id: 7,
+      id: 8,
       name: "Done clears to resting icon",
       state: "done",
       label: "Done",

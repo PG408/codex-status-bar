@@ -19,6 +19,7 @@ with the fallback labels below.
 | Long-running tool warning | `tool` | current tool label | yes | amber | standard Codex icon with warning tint only | A `tool` session has no `PostToolUse` after 3 minutes. The state, label, and timer are not changed. |
 | Compacting | `compacting` | `Compacting` | yes | yellow | standard Codex icon | Main `PreCompact`. |
 | Permission | `permission` | `Awaiting permission` | no | red | Codex icon plus red status dot | Main `PermissionRequest`. |
+| Needs input | `needs_input` | `Needs input` | no | yellow | Codex icon plus yellow status dot | Main `PreToolUse` for `request_user_input`. |
 | Waiting | `waiting` | `Waiting` | no | yellow | standard Codex icon | Stale active Desktop session fallback after the liveness rule marks it waiting. |
 | Subagent running | `thinking` | `Subagent` | yes | green | standard Codex icon | `SubagentStart` or subagent-scoped activity while no higher-priority main activity is visible. |
 | Subagent permission | `permission` | `Subagent permission` | no | red | Codex icon plus red status dot | Subagent-scoped `PermissionRequest`. |
@@ -39,8 +40,8 @@ Color constants in the current Swift implementation:
 ## Icon Modes
 
 `Codex` icon style uses the bundled original Codex menu bar template and applies
-the state colors above. `permission` also uses the status-dot overlay so approval
-requests remain visually distinct.
+the state colors above. `permission` and `needs_input` use matching status-dot
+overlays so user-action requests remain visually distinct.
 
 `Pet` icon style is intentionally separate. PET rendering follows the PET icon
 frames and does not use the Codex tint table. State text and timers are still
@@ -58,7 +59,7 @@ session. Instead, it combines surface identity and activity in the `APP` or
 | Session title | Uses latest `thread_name` from `~/.codex/session_index.jsonl`; Side Chat sessions display `Side Chat`; fallback is `Unknown`. |
 | Timer | Shown for `thinking`, `tool`, and `compacting` when `startedAt > 0`. |
 | Badge text | `APP` for Desktop focus targets, `CLI` for terminal/editor focus targets. |
-| Running badge | Uses the system accent color for `thinking`, `tool`, and `compacting`. |
+| Running badge | Uses the system accent color for `thinking`, `tool`, `compacting`, and `needs_input`. |
 | Resting badge | Uses a muted system fill for `idle`, `done`, `waiting`, and permission rows. |
 | Hover | Uses system selection colors so title, timer, and badge remain readable. |
 

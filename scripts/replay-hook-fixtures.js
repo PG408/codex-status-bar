@@ -64,6 +64,8 @@ function readSessions(stateDir) {
 function priority(session) {
   switch (session.state) {
     case "permission":
+      return 3;
+    case "needs_input":
       return 2;
     case "thinking":
     case "tool":

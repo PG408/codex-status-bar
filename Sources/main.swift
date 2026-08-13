@@ -234,6 +234,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         case tool
         case compacting
         case permission
+        case needsInput = "needs_input"
         case waiting
     }
 
@@ -845,7 +846,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func isActiveState(_ state: State) -> Bool {
         switch state {
-        case .thinking, .tool, .compacting, .permission, .waiting:
+        case .thinking, .tool, .compacting, .permission, .needsInput, .waiting:
             return true
         case .idle, .done:
             return false
@@ -952,6 +953,9 @@ final class StatusController: NSObject, NSMenuDelegate {
         case .permission:
             logRender(state: .permission, label: label, startedAt: 0)
             render(state: .permission, label: label.isEmpty ? "Awaiting permission" : label, startedAt: 0)
+        case .needsInput:
+            logRender(state: .needsInput, label: label, startedAt: 0)
+            render(state: .needsInput, label: label.isEmpty ? "Needs input" : label, startedAt: 0)
         case .waiting:
             logRender(state: .waiting, label: label, startedAt: 0)
             render(state: .waiting, label: label.isEmpty ? "Waiting" : label, startedAt: 0)
@@ -1148,7 +1152,8 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func sessionBadgeIsRunning(_ session: Session) -> Bool {
-        session.effectiveState == .thinking || session.effectiveState == .tool || session.effectiveState == .compacting
+        session.effectiveState == .thinking || session.effectiveState == .tool ||
+            session.effectiveState == .compacting || session.effectiveState == .needsInput
     }
 
     func surfaceTag(for session: Session) -> String {
@@ -1418,7 +1423,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             if isArchivedThread(session) {
                 return false
             }
-            if [.permission, .tool, .thinking, .compacting, .waiting].contains(session.effectiveState) {
+            if [.permission, .needsInput, .tool, .thinking, .compacting, .waiting].contains(session.effectiveState) {
                 return true
             }
             return !isDesktopSession(session) && session.pid > 0 && pidAlive(session.pid)
@@ -1510,14 +1515,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func priority(of state: State) -> Int {
-        switch state {
-        case .permission:
-            return 2
-        case .thinking, .tool, .compacting:
-            return 1
-        case .idle, .done, .waiting:
-            return 0
-        }
+        SessionStateRules.presentationPriority(for: state.rawValue)
     }
 
     func statusLabel(for session: Session) -> String {
@@ -1531,6 +1529,8 @@ final class StatusController: NSObject, NSMenuDelegate {
             label = session.label.isEmpty ? "Compacting" : session.label
         case .permission:
             label = session.label.isEmpty ? "Awaiting permission" : session.label
+        case .needsInput:
+            label = session.label.isEmpty ? "Needs input" : session.label
         case .waiting:
             label = session.label.isEmpty ? "Waiting" : session.label
         case .idle, .done:
@@ -1596,7 +1596,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         switch state {
         case .permission:
             playSystemSound(named: "Ping")
-        case .idle, .done, .thinking, .tool, .compacting, .waiting:
+        case .idle, .done, .thinking, .tool, .compacting, .needsInput, .waiting:
             return
         }
     }
@@ -1752,7 +1752,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             color = longRunningToolIconTint
         case .tool:
             color = lightBlue
-        case .compacting, .waiting:
+        case .compacting, .needsInput, .waiting:
             color = yellow
         case .thinking:
             color = codexGreen
@@ -1769,7 +1769,14 @@ final class StatusController: NSObject, NSMenuDelegate {
         } else {
             image = codexIcon(color: color, state: state, frame: frame)
         }
-        return state == .permission ? iconWithStatusDot(image, color: red) : image
+        switch state {
+        case .permission:
+            return iconWithStatusDot(image, color: red)
+        case .needsInput:
+            return iconWithStatusDot(image, color: yellow)
+        case .idle, .done, .thinking, .tool, .compacting, .waiting:
+            return image
+        }
     }
 
     func iconWithStatusDot(_ source: NSImage, color: NSColor) -> NSImage {
@@ -1902,7 +1909,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         switch state {
         case .thinking, .tool, .compacting:
             return true
-        case .permission, .waiting:
+        case .permission, .needsInput, .waiting:
             return iconStyle == .pet
         case .idle, .done:
             return false
@@ -1915,7 +1922,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             return PetAnimation(row: 8, frames: 6)
         case .tool, .compacting:
             return PetAnimation(row: 7, frames: 6)
-        case .permission, .waiting:
+        case .permission, .needsInput, .waiting:
             return PetAnimation(row: 6, frames: 6)
         case .idle, .done:
             return PetAnimation(row: 0, frames: 6)

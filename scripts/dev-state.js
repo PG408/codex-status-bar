@@ -17,6 +17,7 @@ const labels = {
   tool: "Running cmd",
   compacting: "Compacting",
   permission: "Awaiting permission",
+  needs_input: "Needs input",
   waiting: "Waiting",
 };
 
@@ -49,7 +50,7 @@ if (
   && !Object.prototype.hasOwnProperty.call(aliases, stateArg)
 ) {
   console.error(`Unknown state: ${stateArg}`);
-  console.error("Use one of: idle, done, thinking, tool, compacting, permission, waiting, subagent, subagent-permission, demo, latency");
+  console.error("Use one of: idle, done, thinking, tool, compacting, permission, needs_input, waiting, subagent, subagent-permission, demo, latency");
   process.exit(2);
 }
 
@@ -94,6 +95,7 @@ async function demo() {
     ["permission", "Subagent permission", { tool: "Task", activity: "subagent" }],
     ["thinking", "Thinking", {}],
     ["permission", "Awaiting permission", {}],
+    ["needs_input", "Needs input", { tool: "request_user_input" }],
     ["tool", "Editing", { tool: "apply_patch" }],
     ["done", "Done", {}],
     ["idle", "", {}],

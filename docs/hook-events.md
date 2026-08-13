@@ -17,7 +17,7 @@ subagent activity inside one session before deriving those fields.
 
 | Field | Purpose |
 |---|---|
-| `state` | One of `idle`, `done`, `thinking`, `tool`, `compacting`, `permission`, or `waiting`. |
+| `state` | One of `idle`, `done`, `thinking`, `tool`, `compacting`, `permission`, `needs_input`, or `waiting`. |
 | `label` | Short menu bar label such as `Thinking`, `Running cmd`, or `Awaiting permission`. |
 | `tool` | Raw tool name when available. |
 | `threadName` | Latest matching `thread_name` from `~/.codex/session_index.jsonl`; Side Chat sessions are detected from Codex Global State prompt history and display as `Side Chat`; defaults to `Unknown` when unavailable. |
@@ -76,7 +76,7 @@ After a successful `SessionStart` or visible activity write, the writer asks the
 | `SessionStart` | none | Creates `idle` session state with `started: false`. |
 | `SessionEnd` | none | Marks an existing session `done`, clears active turn metadata, and retains the state file for up to 7 days. |
 | `UserPromptSubmit` | none | Updates main `thinking`, `Thinking`, a non-zero `startedAt`, `started: true`, and the incoming main `turnId`. During a subagent payload, updates that subagent as running instead. |
-| `PreToolUse` | `*` | If the payload matches the main active `turnId`, updates main `tool` and maps the tool name to a short label. Unknown tools use `Using tool`. During a subagent payload, updates that subagent as running without overriding a higher-priority main tool. |
+| `PreToolUse` | `*` | If the payload matches the main active `turnId`, `request_user_input` writes `needs_input` / `Needs input`; other tools update main `tool` and map the tool name to a short label. Unknown tools use `Using tool`. During a subagent payload, updates that subagent as running without overriding a higher-priority main tool. |
 | `PostToolUse` | `*` | If the payload matches the main active `turnId`, returns main to `thinking` and preserves the timer. During a subagent payload, keeps that subagent running. |
 | `PreCompact` | none | If the payload matches the main active `turnId`, updates main `compacting`, `Compacting`, and preserves the active timer. During a subagent payload, keeps that subagent running. |
 | `PostCompact` | none | If the payload matches the main active `turnId`, returns main to `thinking` and preserves the timer. During a subagent payload, keeps that subagent running. |
@@ -106,28 +106,30 @@ Within one session, the writer derives `state`, `label`, `tool`, and `activity` 
 internal facts in this order:
 
 1. main or subagent permission
-2. main tool
-3. main compacting
-4. subagent running
-5. main thinking
-6. waiting
-7. done
-8. idle
+2. main needs input
+3. main tool
+4. main compacting
+5. subagent running
+6. main thinking
+7. waiting
+8. done
+9. idle
 
-This priority is local to one session. It does not change Swift's cross-session lead
-selection rule.
+This priority is local to one session. Swift applies the corresponding user-attention
+priority when selecting the lead session across files.
 
 ## Lead Session Selection
 
 The Swift app aggregates all files in `state.d/` and renders one lead session in the menu bar:
 
 1. `permission`
-2. `tool`, `thinking`, or `compacting`
-3. `idle`, `done`, or `waiting`
+2. `needs_input`
+3. `tool`, `thinking`, or `compacting`
+4. `idle`, `done`, or `waiting`
 
 Within the same priority tier, the most recent `ts` wins.
 
-A live main `thinking` or `compacting` session remains active until a matching `PostCompact` or main `Stop` updates main facts, `SessionEnd` marks the file complete, Swift detects a transcript `turn_aborted` event with `reason: "interrupted"`, or Swift determines that the owning surface is no longer alive. `SubagentStop` only removes subagent activity. A live main `tool` session remains `tool` until `PostToolUse`; after three minutes from `PreToolUse`, Swift changes only the icon tint as a warning and leaves the persisted state, label, and timer semantics unchanged.
+A live main `thinking` or `compacting` session remains active until a matching `PostCompact` or main `Stop` updates main facts, `SessionEnd` marks the file complete, Swift detects a transcript `turn_aborted` event with `reason: "interrupted"`, or Swift determines that the owning surface is no longer alive. `SubagentStop` only removes subagent activity. A live main `tool` session remains `tool` until `PostToolUse`; after three minutes from `PreToolUse`, Swift changes only the icon tint as a warning and leaves the persisted state, label, and timer semantics unchanged. A `needs_input` session remains visible until the user's answer produces the matching `PostToolUse`.
 
 For liveness, CLI sessions may use the hook parent pid as supporting evidence. Desktop sessions do not use the Codex app pid to prove an individual session is still active, because the Desktop app process can outlive any one conversation. Liveness changes affect effective state without deleting the retained record; state files are age-pruned after 7 days.
 
@@ -171,4 +173,5 @@ node scripts/verify-phase4-lifecycle.js
 | `subagent-main-stop-session.json` | Main `Stop` is the only session-level done signal and clears active subagent facts. |
 | `subagent-priority-session.json` | Single-session aggregation keeps main thinking/tool/compacting authoritative according to local priority, keeps subagent permission highest, and accepts later main `PostToolUse` / `Stop` after `SubagentStop`. |
 | `compacting-session.json` | `PreCompact` shows context compaction as `compacting`, then `PostCompact` returns to `thinking`. |
+| `needs-input-session.json` | `request_user_input` shows `needs_input`, outranks ordinary tool work, remains below permission, and returns to `thinking` after the answer. |
 | `transcript-path-session.json` | Writer preserves `transcript_path` across subsequent events for interruption recovery. |

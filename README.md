@@ -35,6 +35,7 @@ Codex Status Bar is strongly inspired by two reference projects [See acknowledge
   `Reading`, `Searching`, or `Using tool`.
 - **Compacting** - a dedicated compacting state while Codex compresses context.
 - **Awaiting permission** - a red permission indicator when Codex needs approval.
+- **Needs input** - a yellow attention indicator while Codex waits for an answer.
 - **Subagent** - a separate state for subagent activity inside a turn.
 - **Idle / done** - a resting Codex icon when no active work is visible.
 
@@ -55,7 +56,7 @@ Everything is controlled from the menu:
 | Codex Desktop sessions | Yes | Desktop rows prefer `codex://threads/<sessionId>` for click focus. |
 | Codex CLI sessions | Yes | CLI rows focus the terminal/editor app when a target is known. |
 | Multiple simultaneous sessions | Yes | The menu bar selects one lead session; the menu lists all tracked sessions. |
-| Permission requests | Yes | Permission state has the highest display priority. |
+| User action requests | Yes | Permission is highest priority; explicit input requests come next. |
 | Subagent activity | Yes | Subagent and subagent permission are shown separately. |
 | Archived Desktop chats | Best effort | Archived or missing threads may only bring Codex forward. |
 | Exact terminal tab focus | No | Terminal tab/window precision is not implemented. |

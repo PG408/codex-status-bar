@@ -1,0 +1,123 @@
+{
+  "name": "needs-input-session",
+  "description": "A user-input request is visible until the user answers and outranks ordinary tool work.",
+  "steps": [
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "question-session",
+        "turn_id": "question-turn",
+        "cwd": "/tmp/question-project"
+      },
+      "expect": {
+        "sessions": {
+          "question-session": {
+            "state": "thinking",
+            "label": "Thinking",
+            "turnId": "question-turn"
+          }
+        },
+        "lead": "question-session"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "question-session",
+        "turn_id": "question-turn",
+        "cwd": "/tmp/question-project",
+        "tool_name": "request_user_input"
+      },
+      "expect": {
+        "sessions": {
+          "question-session": {
+            "state": "needs_input",
+            "label": "Needs input",
+            "tool": "request_user_input",
+            "turnId": "question-turn",
+            "startedAt": 0
+          }
+        },
+        "lead": "question-session"
+      }
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload": {
+        "session_id": "worker-session",
+        "turn_id": "worker-turn",
+        "cwd": "/tmp/worker-project"
+      },
+      "expect": {
+        "sessions": {
+          "worker-session": {
+            "state": "thinking",
+            "label": "Thinking",
+            "turnId": "worker-turn"
+          }
+        },
+        "lead": "question-session"
+      }
+    },
+    {
+      "event": "PreToolUse",
+      "payload": {
+        "session_id": "worker-session",
+        "turn_id": "worker-turn",
+        "cwd": "/tmp/worker-project",
+        "tool_name": "Bash"
+      },
+      "expect": {
+        "sessions": {
+          "worker-session": {
+            "state": "tool",
+            "label": "Running cmd",
+            "tool": "Bash",
+            "turnId": "worker-turn"
+          }
+        },
+        "lead": "question-session"
+      }
+    },
+    {
+      "event": "PermissionRequest",
+      "payload": {
+        "session_id": "worker-session",
+        "turn_id": "worker-turn",
+        "cwd": "/tmp/worker-project",
+        "tool_name": "Bash"
+      },
+      "expect": {
+        "sessions": {
+          "worker-session": {
+            "state": "permission",
+            "label": "Awaiting permission",
+            "tool": "Bash",
+            "turnId": "worker-turn"
+          }
+        },
+        "lead": "worker-session"
+      }
+    },
+    {
+      "event": "PostToolUse",
+      "payload": {
+        "session_id": "question-session",
+        "turn_id": "question-turn",
+        "cwd": "/tmp/question-project",
+        "tool_name": "request_user_input"
+      },
+      "expect": {
+        "sessions": {
+          "question-session": {
+            "state": "thinking",
+            "label": "Thinking",
+            "tool": "request_user_input",
+            "turnId": "question-turn"
+          }
+        },
+        "lead": "worker-session"
+      }
+    }
+  ]
+}

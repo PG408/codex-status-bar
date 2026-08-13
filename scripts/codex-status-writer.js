@@ -204,6 +204,9 @@ function deriveVisibleState(facts) {
   if (subagentPermission) {
     return { state: "permission", label: subagentPermission.label || subagentLabel(subagentPermission.kind, "permission"), tool: subagentPermission.tool || "", activity: "subagent", subagentKey: subagentPermission.key, startedAt: 0, turnId: main.turnId || subagentPermission.turnId || "" };
   }
+  if (main.state === "needs_input") {
+    return { state: "needs_input", label: main.label || "Needs input", tool: main.tool || "", activity: "", subagentKey: "", startedAt: 0, turnId: main.turnId || "" };
+  }
   if (main.state === "tool") {
     return { state: "tool", label: main.label || "Using tool", tool: main.tool || "", activity: "", subagentKey: "", startedAt: Number(main.startedAt || 0), turnId: main.turnId || "" };
   }
@@ -369,6 +372,11 @@ function writeStateForEvent(inputPayload) {
       }
       if (!isActiveMainTurn(payload, facts, prev)) return false;
       if (!startedAt) startedAt = now;
+      if (toolName === "request_user_input") {
+        facts = updateMain(facts, { state: "needs_input", label: "Needs input", tool: toolName, turnId: turnIdFor(payload) || facts.main.turnId, startedAt });
+        writeJsonAtomic(statePathFor(sessionId), currentState(facts, now));
+        return true;
+      }
       facts = updateMain(facts, { state: "tool", label: labelForTool(toolName) || "Using tool", tool: toolName, turnId: turnIdFor(payload) || facts.main.turnId, startedAt });
       writeJsonAtomic(statePathFor(sessionId), {
         ...currentState(facts, now),

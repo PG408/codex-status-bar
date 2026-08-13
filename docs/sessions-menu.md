@@ -4,8 +4,9 @@ The Sessions menu lists current Codex sessions from the `state.d` model. The
 status bar still renders one lead session, selected by the same priority rule:
 
 1. `permission`
-2. `tool`, `thinking`, or `compacting`
-3. most recent `idle`, `done`, or `waiting`
+2. `needs_input`
+3. `tool`, `thinking`, or `compacting`
+4. most recent `idle`, `done`, or `waiting`
 
 The menu lists sessions from:
 
@@ -30,7 +31,7 @@ Each session row is a custom AppKit view with:
 
 - thread name from the latest matching `thread_name` in `~/.codex/session_index.jsonl`, truncated before it can overlap the timer or badge
 - `Side Chat` when the session is a Codex Side Chat detected from local Codex Global State prompt history
-- elapsed timer for `thinking`, `tool`, and `compacting`
+- elapsed timer for `thinking`, `tool`, and `compacting`; `needs_input` has no timer
 - `CLI` or `APP` badge when the surface is known; the badge uses the active color for running sessions and a muted color for resting sessions
 
 If the thread name cannot be read and the session is not recognized as a Side

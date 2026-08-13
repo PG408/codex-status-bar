@@ -30,7 +30,7 @@ status never changes, open Codex and check:
 | Option | Effect |
 |---|---|
 | Show timer | Shows elapsed time for active work such as thinking, tool use, and compacting. |
-| Show status text | Shows labels such as `Thinking`, `Running command`, or `Awaiting permission`. |
+| Show status text | Shows labels such as `Thinking`, `Running command`, `Needs input`, or `Awaiting permission`. |
 | Play notification sounds | Plays a sound for permission requests and completed work. |
 | Hide idle sessions | Controls how long resting sessions remain in the Sessions menu. |
 | Use system icon color | Uses the adaptive macOS menu bar glyph color for non-permission states. |
@@ -68,6 +68,7 @@ node scripts/dev-state.js thinking
 node scripts/dev-state.js tool
 node scripts/dev-state.js compacting
 node scripts/dev-state.js permission
+node scripts/dev-state.js needs_input
 node scripts/dev-state.js waiting
 node scripts/dev-state.js done
 ```
