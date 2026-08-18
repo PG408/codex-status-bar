@@ -19,6 +19,8 @@ The menu lists sessions from:
 The menu is grouped into four sections:
 
 - `Sessions`: active Codex sessions from `state.d`.
+- `Show / Hide Codex`: toggles the Codex Desktop app from the menu or the recorded global shortcut.
+- `Global Shortcut`: closes the menu and records a new shortcut from the menu bar prompt without opening a settings window.
 - `Options`: timer, status text, notification sounds, and `Hide idle sessions`.
 - `Icon`: system color, Codex icon, and Codex Pets.
 - `Diagnostics`: reveal state directory, reset status, and quit.

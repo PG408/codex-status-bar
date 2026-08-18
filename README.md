@@ -41,6 +41,8 @@ Codex Status Bar is strongly inspired by two reference projects [See acknowledge
 
 Everything is controlled from the menu:
 
+- **Show / Hide Codex:** bring Codex forward, hide it, or launch it when needed.
+- **Global Shortcut:** click the menu row, then record from the menu bar prompt; the default is `Control + Option + Space`.
 - **Show timer:** toggle the elapsed `1m 1s` clock.
 - **Show status text:** choose between icon-only mode and icon + label mode.
 - **Play notification sounds:** toggle permission and completion sounds.

@@ -29,6 +29,8 @@ status never changes, open Codex and check:
 
 | Option | Effect |
 |---|---|
+| Show Codex / Hide Codex | Brings Codex to the foreground, hides it when already active, or launches it when needed. |
+| Global Shortcut | Click to close the menu and start recording from the menu bar prompt. Press a key combination to save it, `Esc` to cancel, or `Delete` to disable it. |
 | Show timer | Shows elapsed time for active work such as thinking, tool use, and compacting. |
 | Show status text | Shows labels such as `Thinking`, `Running command`, `Needs input`, or `Awaiting permission`. |
 | Play notification sounds | Plays a sound for permission requests and completed work. |
@@ -38,6 +40,10 @@ status never changes, open Codex and check:
 | Pet | Chooses an installed local Codex pet when Pet mode is enabled. |
 | Reveal State Directory | Opens the local status directory in Finder. |
 | Reset Status | Clears local display state records. |
+
+The default global shortcut is `Control + Option + Space`. While a global
+shortcut is enabled, Codex Status Bar remains running so it can launch Codex
+even when Codex is not already open.
 
 ## Sessions Menu
 
@@ -141,6 +147,8 @@ node scripts/verify-hook-manager.js
 node scripts/verify-phase4-lifecycle.js
 node scripts/verify-session-surface.js
 node scripts/verify-menu-model.js
+node scripts/verify-global-shortcut-rules.js
+node scripts/verify-global-shortcut-ui.js
 node scripts/verify-swift-state-rules.js
 node scripts/verify-preference-migration.js
 ./build.sh

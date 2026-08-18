@@ -399,6 +399,19 @@ final class StatusController: NSObject, NSMenuDelegate {
     var lastObservedMenuSecond: Int?
     var menuIsOpen = false
     var sessionMenuItems: [(item: NSMenuItem, id: String)] = []
+    var shortcutRecorderRow: GlobalShortcutMenuRowView?
+    var globalShortcut: GlobalShortcutDefinition? = GlobalShortcutRules.defaultShortcut
+    var isRecordingGlobalShortcut = false
+    lazy var globalHotKeyRegistrar = GlobalHotKeyRegistrar { [weak self] in
+        self?.performGlobalCodexToggle()
+    }
+    lazy var globalShortcutRecordingRegistrar: ShortcutRecordingHotKeyRegistrar = {
+        let registrar = ShortcutRecordingHotKeyRegistrar()
+        registrar.onAction = { [weak self] action in
+            self?.handleGlobalShortcutRecordingAction(action)
+        }
+        return registrar
+    }()
 
     var hideIdleAfter: TimeInterval {
         let stored = UserDefaults.standard.object(forKey: "hideIdleAfter") as? Double ?? 1800
@@ -454,6 +467,10 @@ final class StatusController: NSObject, NSMenuDelegate {
             iconStyle = savedIconStyle
         }
         selectedPetId = defaults.string(forKey: "selectedPetId") ?? ""
+        globalShortcut = GlobalShortcutPreferences.load(defaults: defaults)
+        if !globalHotKeyRegistrar.register(globalShortcut) {
+            globalShortcut = nil
+        }
 
         statusMenu.delegate = self
         statusItem.menu = statusMenu
@@ -488,6 +505,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func menuDidClose(_ menu: NSMenu) {
         menuIsOpen = false
+        shortcutRecorderRow = nil
         sessionMenuItems.removeAll()
     }
 
@@ -501,6 +519,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         refreshEffectiveSessionStates(codexRunning: codexRunning)
 
         addSessionsSection(to: menu)
+        addGlobalShortcutSection(to: menu)
 
         menu.addItem(header("Options"))
         let timerItem = NSMenuItem(title: "Show timer", action: #selector(toggleTimer), keyEquivalent: "")
@@ -627,6 +646,40 @@ final class StatusController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
     }
 
+    func addGlobalShortcutSection(to menu: NSMenu) {
+        let commandRow = GlobalShortcutMenuRowView(
+            title: codexVisibilityCommandTitle(),
+            shortcut: globalShortcut,
+            role: .command,
+            width: 310
+        )
+        let commandItem = NSMenuItem()
+        commandItem.view = commandRow
+        commandRow.onAction = { [weak self, weak menu] in
+            menu?.cancelTracking()
+            self?.performGlobalCodexToggle()
+        }
+        menu.addItem(commandItem)
+
+        let recorderRow = GlobalShortcutMenuRowView(
+            title: "Global Shortcut",
+            shortcut: globalShortcut,
+            role: .recorder,
+            width: 310
+        )
+        let recorderItem = NSMenuItem()
+        recorderItem.view = recorderRow
+        recorderRow.onRecordingRequested = { [weak self, weak menu] in
+            menu?.cancelTrackingWithoutAnimation()
+            DispatchQueue.main.async {
+                self?.beginGlobalShortcutRecording()
+            }
+        }
+        shortcutRecorderRow = recorderRow
+        menu.addItem(recorderItem)
+        menu.addItem(.separator())
+    }
+
     @objc func toggleTimer() {
         showTimer.toggle()
         UserDefaults.standard.set(showTimer, forKey: "showTimer")
@@ -691,6 +744,76 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     @objc func quit() {
         NSApp.terminate(nil)
+    }
+
+    func replaceGlobalShortcut(with shortcut: GlobalShortcutDefinition?) -> Bool {
+        guard globalHotKeyRegistrar.register(shortcut) else {
+            _ = globalHotKeyRegistrar.register(globalShortcut)
+            return false
+        }
+        globalShortcut = shortcut
+        GlobalShortcutPreferences.save(shortcut)
+        shortcutRecorderRow?.setShortcut(shortcut)
+        return true
+    }
+
+    func beginGlobalShortcutRecording() {
+        guard !isRecordingGlobalShortcut else { return }
+        globalHotKeyRegistrar.unregister()
+        guard globalShortcutRecordingRegistrar.start() else {
+            _ = globalHotKeyRegistrar.register(globalShortcut)
+            return
+        }
+        isRecordingGlobalShortcut = true
+        applyTitle()
+    }
+
+    func handleGlobalShortcutRecordingAction(_ action: ShortcutRecordingHotKeyRegistrar.Action) {
+        guard isRecordingGlobalShortcut else { return }
+        globalShortcutRecordingRegistrar.stop()
+        isRecordingGlobalShortcut = false
+        switch action {
+        case .cancel:
+            _ = globalHotKeyRegistrar.register(globalShortcut)
+        case .disable:
+            _ = replaceGlobalShortcut(with: nil)
+        case let .capture(shortcut):
+            _ = replaceGlobalShortcut(with: shortcut)
+        }
+        applyTitle()
+    }
+
+    func codexVisibilityCommandTitle() -> String {
+        let app = runningCodexDesktopApplication()
+        let action = GlobalShortcutRules.visibilityAction(
+            isRunning: app != nil,
+            isFrontmost: app?.isActive == true
+        )
+        return action == .hide ? "Hide Codex" : "Show Codex"
+    }
+
+    func performGlobalCodexToggle() {
+        let application = runningCodexDesktopApplication()
+        let action = GlobalShortcutRules.visibilityAction(
+            isRunning: application != nil,
+            isFrontmost: application?.isActive == true
+        )
+        switch action {
+        case .hide:
+            application?.hide()
+        case .activate:
+            application?.unhide()
+            application?.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
+        case .launch:
+            openCodex()
+        }
+    }
+
+    func runningCodexDesktopApplication() -> NSRunningApplication? {
+        let applications = NSRunningApplication.runningApplications(
+            withBundleIdentifier: "com.openai.codex"
+        ).filter { !$0.isTerminated }
+        return applications.first(where: \.isActive) ?? applications.first
     }
 
     var appVersion: String {
@@ -1313,6 +1436,8 @@ final class StatusController: NSObject, NSMenuDelegate {
         let workspace = NSWorkspace.shared
         if let url = workspace.urlForApplication(withBundleIdentifier: bundleId.isEmpty ? "com.openai.codex" : bundleId) {
             workspace.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        } else if FileManager.default.fileExists(atPath: "/Applications/ChatGPT.app") {
+            workspace.open(URL(fileURLWithPath: "/Applications/ChatGPT.app"))
         } else {
             workspace.open(URL(fileURLWithPath: "/Applications/Codex.app"))
         }
@@ -1493,6 +1618,10 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func evaluateAutoExit(codexRunning: Bool) {
         guard ProcessInfo.processInfo.environment["CODEX_STATUSBAR_DISABLE_AUTO_EXIT"] != "1" else { return }
+        guard globalShortcut == nil else {
+            notNeededSince = nil
+            return
+        }
         if codexRunning || hasLiveSession() {
             notNeededSince = nil
             return
@@ -1651,19 +1780,19 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     func applyTitle() {
         guard let button = statusItem.button else { return }
-        guard activeState != .idle && activeState != .done else {
+        guard isRecordingGlobalShortcut || (activeState != .idle && activeState != .done) else {
             applyIconOnlyStatus(to: button)
             return
         }
 
-        let timer = currentStatusTimer()
-        if !showStatusText && !showTimer {
+        let timer = isRecordingGlobalShortcut ? "" : currentStatusTimer()
+        if !isRecordingGlobalShortcut && !showStatusText && !showTimer {
             applyIconOnlyStatus(to: button)
             return
         }
 
-        let label = showStatusText ? activeLabel : ""
-        let displayedTimer = showTimer ? timer : ""
+        let label = isRecordingGlobalShortcut ? "Press shortcut..." : (showStatusText ? activeLabel : "")
+        let displayedTimer = isRecordingGlobalShortcut ? "" : (showTimer ? timer : "")
         let layout = statusTitleLayout(label: label, timer: displayedTimer)
         let height = max(button.bounds.height, NSStatusItem.squareLength)
         let appearanceName = button.effectiveAppearance.name.rawValue
