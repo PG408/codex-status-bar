@@ -16,14 +16,15 @@ The menu lists sessions from:
 
 ## Menu Sections
 
-The menu is grouped into four sections:
+The menu keeps the session list prominent and groups secondary choices into native submenus:
 
 - `Sessions`: active Codex sessions from `state.d`.
 - `Show / Hide Codex`: toggles the Codex Desktop app from the menu or the recorded global shortcut.
-- `Global Shortcut`: closes the menu and records a new shortcut from the menu bar prompt without opening a settings window.
-- `Options`: timer, status text, notification sounds, and `Hide idle sessions`.
-- `Icon`: system color, Codex icon, and Codex Pets.
-- `Diagnostics`: reveal state directory, reset status, and quit.
+- `Set Shortcut...` / `Change Shortcut...`: closes the menu and records a shortcut from the menu bar prompt without opening a settings window.
+- Direct options: timer, status text, notification sounds, and `Hide Idle Sessions`.
+- `Appearance`: chooses the Codex icon or an installed Codex Pet.
+- `Diagnostics`: reveals the state directory or resets status.
+- `About Codex Status Bar...`: opens the standard macOS About panel with version information.
 
 ## Session Rows
 

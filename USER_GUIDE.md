@@ -30,16 +30,15 @@ status never changes, open Codex and check:
 | Option | Effect |
 |---|---|
 | Show Codex / Hide Codex | Brings Codex to the foreground, hides it when already active, or launches it when needed. |
-| Global Shortcut | Click to close the menu and start recording from the menu bar prompt. Press a key combination to save it, `Esc` to cancel, or `Delete` to disable it. |
-| Show timer | Shows elapsed time for active work such as thinking, tool use, and compacting. |
-| Show status text | Shows labels such as `Thinking`, `Running command`, `Needs input`, or `Awaiting permission`. |
-| Play notification sounds | Plays a sound for permission requests and completed work. |
-| Hide idle sessions | Controls how long resting sessions remain in the Sessions menu. |
-| Use system icon color | Uses the adaptive macOS menu bar glyph color for non-permission states. |
-| Icon Style | Switches between the Codex icon and local Codex Pets. |
-| Pet | Chooses an installed local Codex pet when Pet mode is enabled. |
+| Set / Change Shortcut | Click to close the menu and start recording from the menu bar prompt. Press a key combination to save it, `Esc` to cancel, or `Delete` to disable it. |
+| Show Timer | Shows elapsed time for active work such as thinking, tool use, and compacting. |
+| Show Status Text | Shows labels such as `Thinking`, `Running command`, `Needs input`, or `Awaiting permission`. |
+| Notification Sounds | Plays a sound for permission requests and completed work. |
+| Hide Idle Sessions | Controls how long resting sessions remain in the Sessions menu. |
+| Appearance | Switches between the Codex icon and an installed local Codex Pet. |
 | Reveal State Directory | Opens the local status directory in Finder. |
 | Reset Status | Clears local display state records. |
+| About Codex Status Bar | Shows app and version information. |
 
 The default global shortcut is `Control + Option + Space`. While a global
 shortcut is enabled, Codex Status Bar remains running so it can launch Codex

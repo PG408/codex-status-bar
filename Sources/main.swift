@@ -52,6 +52,8 @@ final class SessionRowView: NSView {
         self.id = id
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: rowH))
         autoresizingMask = [.width]
+        setAccessibilityElement(true)
+        setAccessibilityRole(.button)
 
         highlightView.material = .selection
         highlightView.state = .active
@@ -83,10 +85,22 @@ final class SessionRowView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func configure(name: String, timer: String?, badgeNormal: NSImage?, badgeSelected: NSImage?,
+    override var acceptsFirstResponder: Bool { true }
+
+    override func accessibilityPerformPress() -> Bool {
+        onClick?()
+        return true
+    }
+
+    func configure(name: String, timer: String?, badgeLabel: String,
+                   badgeNormal: NSImage?, badgeSelected: NSImage?,
                    badgeInset: CGFloat, timerGap: CGFloat) {
         let w = bounds.width
         nameField.stringValue = name
+        setAccessibilityLabel(name)
+        setAccessibilityValue([timer, badgeLabel]
+            .compactMap { $0?.isEmpty == false ? $0 : nil }
+            .joined(separator: ", "))
 
         self.badgeNormal = badgeNormal
         self.badgeSelected = badgeSelected
@@ -149,6 +163,14 @@ final class SessionRowView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         onClick?()
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.charactersIgnoringModifiers == "\r" || event.charactersIgnoringModifiers == " " {
+            onClick?()
+        } else {
+            super.keyDown(with: event)
+        }
     }
 }
 
@@ -521,23 +543,22 @@ final class StatusController: NSObject, NSMenuDelegate {
         addSessionsSection(to: menu)
         addGlobalShortcutSection(to: menu)
 
-        menu.addItem(header("Options"))
-        let timerItem = NSMenuItem(title: "Show timer", action: #selector(toggleTimer), keyEquivalent: "")
+        let timerItem = NSMenuItem(title: "Show Timer", action: #selector(toggleTimer), keyEquivalent: "")
         timerItem.target = self
         timerItem.state = showTimer ? .on : .off
         menu.addItem(timerItem)
 
-        let statusTextItem = NSMenuItem(title: "Show status text", action: #selector(toggleStatusText), keyEquivalent: "")
+        let statusTextItem = NSMenuItem(title: "Show Status Text", action: #selector(toggleStatusText), keyEquivalent: "")
         statusTextItem.target = self
         statusTextItem.state = showStatusText ? .on : .off
         menu.addItem(statusTextItem)
 
-        let soundsItem = NSMenuItem(title: "Play notification sounds", action: #selector(toggleNotificationSounds), keyEquivalent: "")
+        let soundsItem = NSMenuItem(title: "Notification Sounds", action: #selector(toggleNotificationSounds), keyEquivalent: "")
         soundsItem.target = self
         soundsItem.state = playNotificationSounds ? .on : .off
         menu.addItem(soundsItem)
 
-        let hideParent = NSMenuItem(title: "Hide idle sessions", action: nil, keyEquivalent: "")
+        let hideParent = NSMenuItem(title: "Hide Idle Sessions", action: nil, keyEquivalent: "")
         let hideMenu = NSMenu()
         for (title, seconds) in [
             ("5 minutes", 300.0),
@@ -559,48 +580,41 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        menu.addItem(header("Icon"))
-        let iconStyleItem = NSMenuItem(title: "Icon Style", action: nil, keyEquivalent: "")
-        let iconStyleMenu = NSMenu()
+        let appearanceItem = NSMenuItem(title: "Appearance", action: nil, keyEquivalent: "")
+        let appearanceMenu = NSMenu()
         let codexItem = NSMenuItem(title: "Codex", action: #selector(useCodexIconStyle), keyEquivalent: "")
         codexItem.target = self
         codexItem.state = iconStyle == .codex ? .on : .off
-        iconStyleMenu.addItem(codexItem)
-        let petItem = NSMenuItem(title: "Pet", action: #selector(usePetIconStyle), keyEquivalent: "")
-        petItem.target = self
-        petItem.state = iconStyle == .pet ? .on : .off
-        iconStyleMenu.addItem(petItem)
-        iconStyleItem.submenu = iconStyleMenu
-        menu.addItem(iconStyleItem)
+        appearanceMenu.addItem(codexItem)
 
         if !pets.isEmpty {
-            let petsItem = NSMenuItem(title: "Pet", action: nil, keyEquivalent: "")
-            let petsMenu = NSMenu()
+            appearanceMenu.addItem(.separator())
             for pet in pets {
                 let item = NSMenuItem(title: pet.displayName, action: #selector(selectPet(_:)), keyEquivalent: "")
                 item.target = self
                 item.representedObject = pet.id
-                item.state = effectivePet()?.id == pet.id ? .on : .off
-                petsMenu.addItem(item)
+                item.state = iconStyle == .pet && effectivePet()?.id == pet.id ? .on : .off
+                appearanceMenu.addItem(item)
             }
-            petsItem.submenu = petsMenu
-            menu.addItem(petsItem)
         }
+        appearanceItem.submenu = appearanceMenu
+        menu.addItem(appearanceItem)
 
-        menu.addItem(.separator())
-        menu.addItem(header("Diagnostics"))
-
+        let diagnosticsItem = NSMenuItem(title: "Diagnostics", action: nil, keyEquivalent: "")
+        let diagnosticsMenu = NSMenu()
         let revealItem = NSMenuItem(title: "Reveal State Directory", action: #selector(revealStateFile), keyEquivalent: "")
         revealItem.target = self
-        menu.addItem(revealItem)
+        diagnosticsMenu.addItem(revealItem)
 
         let resetItem = NSMenuItem(title: "Reset Status", action: #selector(resetStatus), keyEquivalent: "")
         resetItem.target = self
-        menu.addItem(resetItem)
+        diagnosticsMenu.addItem(resetItem)
+        diagnosticsItem.submenu = diagnosticsMenu
+        menu.addItem(diagnosticsItem)
 
-        let versionItem = NSMenuItem(title: "Version \(appVersion)", action: nil, keyEquivalent: "")
-        versionItem.isEnabled = false
-        menu.addItem(versionItem)
+        let aboutItem = NSMenuItem(title: "About Codex Status Bar...", action: #selector(showAbout), keyEquivalent: "")
+        aboutItem.target = self
+        menu.addItem(aboutItem)
 
         menu.addItem(.separator())
 
@@ -662,7 +676,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         menu.addItem(commandItem)
 
         let recorderRow = GlobalShortcutMenuRowView(
-            title: "Global Shortcut",
+            title: globalShortcut == nil ? "Set Shortcut..." : "Change Shortcut...",
             shortcut: globalShortcut,
             role: .recorder,
             width: 310
@@ -706,10 +720,6 @@ final class StatusController: NSObject, NSMenuDelegate {
         setIconStyle(.codex)
     }
 
-    @objc func usePetIconStyle() {
-        setIconStyle(.pet)
-    }
-
     func setIconStyle(_ style: IconStyle) {
         iconStyle = style
         UserDefaults.standard.set(style.rawValue, forKey: "iconStyle")
@@ -740,6 +750,14 @@ final class StatusController: NSObject, NSMenuDelegate {
         fileMTimes.removeAll()
         legacyMTime = .distantPast
         render(state: .idle, label: "", startedAt: 0)
+    }
+
+    @objc func showAbout() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: "Codex Status Bar",
+            .version: "",
+        ])
     }
 
     @objc func quit() {
@@ -814,10 +832,6 @@ final class StatusController: NSObject, NSMenuDelegate {
             withBundleIdentifier: "com.openai.codex"
         ).filter { !$0.isTerminated }
         return applications.first(where: \.isActive) ?? applications.first
-    }
-
-    var appVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
     }
 
     func tick() {
@@ -1293,6 +1307,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         let running = sessionBadgeIsRunning(session)
         row.configure(name: sessionName(for: session),
                       timer: sessionTimer(for: session),
+                      badgeLabel: tag,
                       badgeNormal: tag.isEmpty ? nil : badgeImage(tag, running: running),
                       badgeSelected: tag.isEmpty ? nil : badgeImage(tag, selected: true),
                       badgeInset: 12,
@@ -1756,7 +1771,6 @@ final class StatusController: NSObject, NSMenuDelegate {
         activeStartedAt = startedAt
         activeIconWarning = iconWarning
 
-        statusItem.isVisible = true
         frameIndex = 0
         applyTitle()
     }

@@ -304,7 +304,12 @@ final class GlobalShortcutMenuRowView: NSView {
     }
 
     private func updateShortcutText() {
-        valueField.stringValue = shortcut?.displayText ?? (role == .recorder ? "Off" : "")
+        switch role {
+        case .command:
+            valueField.stringValue = shortcut?.displayText ?? ""
+        case .recorder:
+            valueField.stringValue = ""
+        }
     }
 
     private func updateAccessibilityValue() {
