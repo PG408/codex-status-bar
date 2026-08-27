@@ -110,16 +110,17 @@ function resolveSessionSurface(payload = {}, prev = {}, env = process.env, optio
   if (envEntrypoint) {
     return resolved(envEntrypoint, "env", termProgram, focusTargetForState({ entrypoint: envEntrypoint, termProgram, sessionId }));
   }
-  if (envTermProgram) {
-    return resolved("cli", "termProgram", envTermProgram, focusTargetForState({ entrypoint: "cli", termProgram: envTermProgram, sessionId }));
-  }
 
   const pid = Number(options.pid || prev.pid || process.ppid || 0);
   const processCommand = typeof options.processCommand === "string"
     ? options.processCommand
     : processCommandForPid(pid);
   if (isCodexDesktopCommand(processCommand)) {
-    return resolved("codex-desktop", "process", termProgram, focusTargetForState({ entrypoint: "codex-desktop", termProgram, sessionId }));
+    return resolved("codex-desktop", "process", payloadTermProgram, focusTargetForState({ entrypoint: "codex-desktop", termProgram: payloadTermProgram, sessionId }));
+  }
+
+  if (envTermProgram) {
+    return resolved("cli", "termProgram", envTermProgram, focusTargetForState({ entrypoint: "cli", termProgram: envTermProgram, sessionId }));
   }
 
   const previousEntrypoint = nonEmptyString(prev.entrypoint);

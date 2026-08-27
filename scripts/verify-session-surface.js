@@ -72,6 +72,22 @@ run("ChatGPT desktop process infers desktop surface", () => {
   assert.equal(surface.focusTarget.url, "codex://threads/chatgpt-session");
 });
 
+run("desktop process overrides inherited terminal environment", () => {
+  const surface = resolveSessionSurface(
+    { session_id: "desktop-with-terminal-env" },
+    {},
+    { TERM_PROGRAM: "ghostty" },
+    {
+      pid: 99897,
+      processCommand: "/Applications/ChatGPT.app/Contents/Resources/codex -c features.code_mode_host=true app-server",
+    }
+  );
+  assert.equal(surface.entrypoint, "codex-desktop");
+  assert.equal(surface.entrypointSource, "process");
+  assert.equal(surface.termProgram, "");
+  assert.equal(surface.focusTarget.url, "codex://threads/desktop-with-terminal-env");
+});
+
 run("cli surface does not generate desktop thread deeplink", () => {
   const surface = resolveSessionSurface(
     { session_id: "cli-session", entrypoint: "cli", term_program: "Apple_Terminal" },
