@@ -40,6 +40,22 @@ Each session row is a custom AppKit view with:
 If the thread name cannot be read and the session is not recognized as a Side
 Chat, the row shows `Unknown`.
 
+Timers use the main turn's `task_started.started_at` from the task transcript.
+Compaction, repeated hooks, and child-agent activity keep that same origin.
+The App also reads the matching task record directly, so an already-running
+session with stale hook state is corrected without waiting for another hook.
+Writers cache the matched record in `taskRecord`; a transcript-path change
+triggers a new lookup, retaining the same turn's recorded origin if the new
+file contains only continuation events. Completed records retain Codex's
+`duration_ms`; idle and done rows still do not display a timer. When task
+records are unavailable, legacy hook timing remains the fallback.
+
+Run `node scripts/verify-task-timing-e2e.js [state-file]` to replay task timing
+and compaction recovery in isolated state directories. The optional state
+file supplies a real task transcript; its terminal events are removed only
+in an isolated copy for recovery replay. Reports are saved under
+`.tmp/task-timing-e2e/`.
+
 Hover uses the system selection material so text, icons, and badges stay readable in light and dark menu appearances.
 
 ## Hide Idle Sessions

@@ -345,6 +345,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         var project: String
         var sessionId: String
         var turnId: String
+        var mainTurnId: String
         var pid: Int32
         var entrypoint: String
         var entrypointSource: String
@@ -391,6 +392,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             self.mainLabel = mainFact?["label"] as? String ?? self.label
             self.mainTool = mainFact?["tool"] as? String ?? self.tool
             self.mainStartedAt = (mainFact?["startedAt"] as? NSNumber)?.doubleValue ?? 0
+            self.mainTurnId = mainFact?["turnId"] as? String ?? self.turnId
             self.started = object["started"] as? Bool ?? false
             self.startedAt = (object["startedAt"] as? NSNumber)?.doubleValue ?? 0
             self.ts = (object["ts"] as? NSNumber)?.doubleValue ?? 0
@@ -408,6 +410,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     var threadMetadata: [String: ThreadMetadata] = [:]
     lazy var threadMetadataStore = ThreadMetadataStore(sqlitePath: threadMetadataPath)
     let transcriptTurnStore = TranscriptTurnStore()
+    let taskTimingStore = TaskTimingStore()
     var activeV2SubagentStartedAt: [String: Double] = [:]
     var v2SubagentPresentedSessionIds: Set<String> = []
     lazy var sessionIndexStore = SessionIndexStore(path: sessionIndexPath)
@@ -975,6 +978,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func refreshV2SubagentStates() {
+        taskTimingStore.retain(paths: Set(sessions.values.map(\.transcript)))
         let candidates = sessions.values.filter { isActiveState($0.state) }
         let parentIds = candidates.map { $0.sessionId.isEmpty ? $0.id : $0.sessionId }
         let childrenByParent = threadMetadataStore.subagentThreads(for: parentIds)
@@ -1724,7 +1728,11 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     func presentationStartedAt(for session: Session) -> Double {
-        activeV2SubagentStartedAt[session.id] ?? session.startedAt
+        if let start = taskTimingStore.startedAt(transcript: session.transcript, turnId: session.mainTurnId) {
+            return start
+        }
+        if session.mainStartedAt > 0 { return session.mainStartedAt }
+        return session.startedAt
     }
 
     func normalizedStatusLabel(_ label: String) -> String {

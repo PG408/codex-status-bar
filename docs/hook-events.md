@@ -29,9 +29,10 @@ subagent activity inside one session before deriving those fields.
 | `entrypointSource` | Evidence used to resolve the surface: `payload`, `env`, `termProgram`, `process`, `previous`, or `unknown`. |
 | `termProgram` | Terminal/editor environment value for CLI sessions, such as `Apple_Terminal`, `iTerm.app`, `WarpTerminal`, `vscode`, or `ghostty`. |
 | `focusTarget` | Click-focus target. Desktop sessions use `{ "kind": "url", "url": "codex://threads/<sessionId>", "fallback": { "kind": "bundle", "bundleId": "com.openai.codex" } }`; CLI sessions use `{ "kind": "app", "appName": "..." }`; unknown sessions use `{ "kind": "none" }`. |
-| `transcript` | Optional transcript path from `transcript_path`; used only to detect user interruption recovery markers. |
+| `transcript` | Optional transcript path from `transcript_path`; used for task timing and interruption recovery. |
+| `taskRecord` | Cached task lifecycle record matched by main `turnId`: `startedAt`, `completedAt`, `durationMs`, `state`, and source `transcript`. `null` when unavailable. |
 | `started` | `false` for lifecycle-created idle sessions; `true` after visible activity. |
-| `startedAt` | Unix timestamp seconds for timer display; `0` when no timer should be shown. |
+| `startedAt` | Task-record Unix timestamp seconds for timer display; `0` when no timer should be shown. Legacy hooks without task records retain a hook-time fallback. |
 | `ts` | Unix timestamp seconds, with millisecond precision, when the session state was written. |
 | `visibleUntilMs` | Writer compatibility field for short tool visibility. Swift no longer uses it to downgrade a running tool to `thinking`. |
 | `minVisibleUntilMs` | Optional lower bound for tool or permission visibility. |
@@ -73,9 +74,9 @@ After a successful `SessionStart` or visible activity write, the writer asks the
 
 | Event | Matcher | Writer behavior |
 |---|---:|---|
-| `SessionStart` | none | Creates `idle` session state with `started: false`. |
+| `SessionStart` | none | Creates `idle` session state with `started: false`. After compaction, restores the running task's recorded start and turn, preserving pending input. |
 | `SessionEnd` | none | Marks an existing session `done`, clears active turn metadata, and retains the state file for up to 7 days. |
-| `UserPromptSubmit` | none | Updates main `thinking`, `Thinking`, a non-zero `startedAt`, `started: true`, and the incoming main `turnId`. During a subagent payload, updates that subagent as running instead. |
+| `UserPromptSubmit` | none | Updates main `thinking`, `Thinking`, `started: true`, and the incoming main `turnId`. Uses that task's recorded start; replaying the same turn preserves its start. During a subagent payload, updates that subagent as running instead. |
 | `PreToolUse` | `*` | If the payload matches the main active `turnId`, `request_user_input` writes `needs_input` / `Needs input`; other tools update main `tool` and map the tool name to a short label. Unknown tools use `Using tool`. During a subagent payload, updates that subagent as running without overriding a higher-priority main tool. |
 | `PostToolUse` | `*` | If the payload matches the main active `turnId`, returns main to `thinking` and preserves the timer. During a subagent payload, keeps that subagent running. |
 | `PreCompact` | none | If the payload matches the main active `turnId`, updates main `compacting`, `Compacting`, and preserves the active timer. During a subagent payload, keeps that subagent running. |

@@ -8,6 +8,7 @@ const { sessionKindForPrompt } = require("./lib/session-kind");
 const { resolveSessionSurface } = require("./lib/session-surface");
 const { shouldSuppressSession } = require("./lib/session-visibility");
 const { normalizeHookPayload } = require("./lib/transcript-session");
+const { readTaskRecord } = require("./lib/task-record");
 
 const event = process.argv[2] || "unknown";
 const appPath = parseAppPathArg();
@@ -282,7 +283,17 @@ function stateFor(payload, prev, facts, now, transcriptContext = {}) {
   const sessionId = sessionIdFor(payload);
   const pid = Number(prev.pid || process.ppid || 0);
   const surface = resolveSessionSurface(payload, prev, process.env, { pid, sessionId });
+  const transcript = typeof payload.transcript_path === "string" ? payload.transcript_path : prev.transcript || "";
+  const taskRecord = facts.main.turnId
+    ? readTaskRecord(transcript, facts.main.turnId, prev.taskRecord, event === "Stop")
+    : null;
+  if (taskRecord?.startedAt > 0 && facts.main.startedAt > 0) {
+    facts = updateMain(facts, { startedAt: taskRecord.startedAt });
+  }
   const visible = deriveVisibleState(facts);
+  if (visible.startedAt > 0 && facts.main.startedAt > 0 && taskRecord?.startedAt > 0) {
+    visible.startedAt = taskRecord.startedAt;
+  }
   const candidateSubagentKey = optionalSafeId(transcriptContext.subagentKey || prev.subagentTranscriptKey || "");
   const hasTranscriptSubagent = candidateSubagentKey && facts.subagents[candidateSubagentKey];
   return {
@@ -301,7 +312,8 @@ function stateFor(payload, prev, facts, now, transcriptContext = {}) {
     entrypointSource: surface.entrypointSource,
     termProgram: surface.termProgram,
     focusTarget: surface.focusTarget,
-    transcript: typeof payload.transcript_path === "string" ? payload.transcript_path : prev.transcript || "",
+    transcript,
+    taskRecord,
     subagentTranscript: hasTranscriptSubagent
       ? transcriptContext.subagentTranscript || prev.subagentTranscript || ""
       : "",
@@ -350,7 +362,8 @@ function writeStateForEvent(inputPayload) {
 
   switch (event) {
     case "UserPromptSubmit": {
-      startedAt = now;
+      startedAt = facts.main.turnId === turnIdFor(payload) && facts.main.startedAt > 0
+        ? facts.main.startedAt : now;
       facts = inSubagent
         ? updateSubagent(facts, payload, { state: "running", tool: toolName, startedAt, turnId: turnIdFor(payload) })
         : updateMain(facts, { state: "thinking", label: "Thinking", tool: toolName, turnId: turnIdFor(payload), startedAt });

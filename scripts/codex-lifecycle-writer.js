@@ -6,6 +6,7 @@ const { ensureStatusBarRunning, parseAppPathArg } = require("./lib/hook-manager"
 const { hasSessionIndexEntry, latestThreadName } = require("./lib/session-index");
 const { resolveSessionSurface } = require("./lib/session-surface");
 const { shouldSuppressSession } = require("./lib/session-visibility");
+const { readTaskRecord } = require("./lib/task-record");
 
 const event = process.argv[2] || "unknown";
 const appPath = parseAppPathArg();
@@ -85,23 +86,53 @@ function run() {
     const now = Date.now() / 1000;
     const pid = Number(process.ppid || 0);
     const surface = resolveSessionSurface(payload, {}, process.env, { pid, sessionId });
+    const afterCompaction = payload.source === "compact" || prev.state === "compacting";
+    const taskRecord = readTaskRecord(transcriptPath, "", null, true) ||
+      (afterCompaction ? prev.taskRecord : null);
+    const previousMain = prev.statusFacts?.main;
+    const fallbackMain = afterCompaction && !taskRecord && previousMain?.startedAt > 0
+      ? previousMain : null;
+    const restoring = afterCompaction &&
+      ((taskRecord?.state === "running" && taskRecord.startedAt > 0) || Boolean(fallbackMain));
+    const main = {
+      state: "thinking", label: "Thinking", tool: "",
+      turnId: taskRecord?.turnId || fallbackMain?.turnId || "",
+      startedAt: taskRecord?.startedAt || fallbackMain?.startedAt || 0,
+    };
+    const sameTurn = previousMain?.turnId === main.turnId;
+    const pendingUserInputs = sameTurn ? prev.statusFacts.pendingUserInputs || {} : {};
+    const legacyNeedsInput = sameTurn && previousMain?.state === "needs_input";
+    const needsInput = restoring && (legacyNeedsInput || Object.keys(pendingUserInputs).length > 0);
+    if (legacyNeedsInput) {
+      main.state = "needs_input";
+      main.label = "Needs input";
+      main.tool = "request_user_input";
+    }
     writeJsonAtomic(statePath, {
-      state: "idle",
-      label: "",
-      tool: "",
+      state: restoring ? (needsInput ? "needs_input" : "thinking") : "idle",
+      label: restoring ? (needsInput ? "Needs input" : "Thinking") : "",
+      tool: needsInput ? "request_user_input" : "",
       threadName: latestThreadName(sessionId),
       project: basename(payload.cwd || payload.working_directory || payload.current_working_directory),
       sessionId,
-      turnId: "",
+      turnId: restoring ? main.turnId : "",
       pid,
       entrypoint: surface.entrypoint,
       entrypointSource: surface.entrypointSource,
       termProgram: surface.termProgram,
       focusTarget: surface.focusTarget,
       transcript: transcriptPath,
-      started: false,
-      startedAt: 0,
+      started: restoring,
+      startedAt: restoring && !needsInput ? main.startedAt : 0,
       ts: now,
+      taskRecord,
+      ...(restoring ? {
+        statusFacts: {
+          main,
+          subagents: sameTurn ? prev.statusFacts.subagents || {} : {},
+          pendingUserInputs,
+        },
+      } : {}),
     });
     ensureStatusBarRunning({ scriptDir: __dirname, appPath });
   } else if (event === "SessionEnd") {
@@ -127,6 +158,9 @@ function run() {
         started: false,
         startedAt: 0,
         ts: now,
+        taskRecord: readTaskRecord(
+          transcriptPath, prev.statusFacts?.main?.turnId || prev.turnId || "", prev.taskRecord, true
+        ),
       });
     }
   }
